@@ -12,4 +12,4 @@ tests:
 .PHONY: sync
 sync: tests
 	git commit -a -m sync
-	git push origin HEAD:lpt
+	git push origin HEAD:main
