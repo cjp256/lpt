@@ -8,8 +8,9 @@ from typing import List, Optional
 import dateutil.parser
 
 from .event import Event
+from .time import calculate_reference_timestamp
 
-logger = logging.getLogger("lpt.journal")
+logger = logging.getLogger("lpt.cloudinit")
 
 
 @dataclasses.dataclass
@@ -83,13 +84,6 @@ class CloudInitEntry:
         self.timestamp_monotonic = (
             self.timestamp_realtime - reference_monotonic
         ).total_seconds()
-
-
-def calculate_reference_timestamp(
-    timestamp: datetime.datetime, monotonic_time: float
-) -> datetime.datetime:
-    """Determine timestmap for monotonic time 0."""
-    return timestamp - datetime.timedelta(seconds=monotonic_time)
 
 
 @dataclasses.dataclass
