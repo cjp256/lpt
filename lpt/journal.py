@@ -91,6 +91,24 @@ class Journal:
 
     @classmethod
     def load_journal_path(cls, path: Path) -> List["Journal"]:
+        if path.is_dir():
+            subprocess.run(
+                ["journalctl", "--sync"],
+                capture_output=True,
+                check=True,
+            )
+            subprocess.run(
+                ["journalctl", "--flush"],
+                capture_output=True,
+                check=True,
+            )
+            proc = subprocess.run(
+                ["journalctl", "-o", "json", "-D", str(path)],
+                capture_output=True,
+                check=True,
+            )
+            return cls.parse_json(proc.stdout)
+
         return cls.parse_json(path.read_bytes())
 
     @classmethod

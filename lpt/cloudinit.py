@@ -211,6 +211,9 @@ class CloudInit:
         for entry in self.find_entries("PPS type:"):
             events.append(entry.as_event("CLOUDINIT_PPS_TYPE"))
 
+        for entry in self.find_entries("PreprovisionedVMType:"):
+            events.append(entry.as_event("CLOUDINIT_PPS_TYPE"))
+
         for entry in self.find_entries("", event_type="start"):
             events.append(entry.as_event("CLOUDINIT_FRAME_START"))
 

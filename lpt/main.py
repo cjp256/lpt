@@ -23,15 +23,35 @@ def _init_logger(log_level: int):
     logger.addHandler(handler)
 
 
-def analyze_journal(journal_json_path: str) -> List[Event]:
-    logger.debug("Analyzing: %s", journal_json_path)
-    if journal_json_path == "local":
-        journals = Journal.load_journal_host()
-    elif journal_json_path:
-        journal_path = Path(journal_json_path)
-        journals = Journal.load_journal_path(journal_path)
-    else:
-        return []
+def print_analysis(events: List[Event]) -> None:
+    events = sorted(events, key=lambda x: x.timestamp_realtime)
+    event_dicts = [e.as_dict() for e in events]
+    warnings = [e for e in event_dicts if e["label"].startswith("WARNING")]
+    errors = [e for e in event_dicts if e["label"].startswith("ERROR")]
+    output = {
+        "events": event_dicts,
+        "warnings": warnings,
+        "errors": errors,
+    }
+    print(json.dumps(output, indent=4))
+
+
+def analyze_cloudinit(
+    log_path: Path = Path("/var/log/cloud-init.log"),
+) -> List[Event]:
+    logger.debug("Analyzing: %s", log_path)
+    cloudinits = CloudInit.parse(log_path)
+
+    events = []
+    for cloudinit in cloudinits:
+        events += cloudinit.get_events_of_interest()
+
+    return events
+
+
+def analyze_journal(journal_path: Path = Path("/var/log/journal")) -> List[Event]:
+    logger.debug("Analyzing: %s", journal_path)
+    journals = Journal.load_journal_path(journal_path)
 
     events = []
     for journal in journals:
@@ -40,22 +60,20 @@ def analyze_journal(journal_json_path: str) -> List[Event]:
     return events
 
 
-def analyze_cloudinit(cloudinit_log_path: str) -> List[Event]:
-    logger.debug("Analyzing: %s", cloudinit_log_path)
+def main_analyze(args) -> None:
+    events = analyze_cloudinit(args.cloudinit_log_path)
+    events += analyze_journal(args.journal_path)
+    print_analysis(events)
 
-    if cloudinit_log_path == "local":
-        log_path = Path("/var/log/cloud-init.log")
-    elif cloudinit_log_path:
-        log_path = Path(cloudinit_log_path)
-    else:
-        return []
 
-    cloudinits = CloudInit.parse(log_path)
-    events = []
-    for cloudinit in cloudinits:
-        events += cloudinit.get_events_of_interest()
+def main_analyze_cloudinit(args) -> None:
+    events = analyze_cloudinit(args.cloudinit_log_path)
+    print_analysis(events)
 
-    return events
+
+def main_analyze_journal(args) -> None:
+    events = analyze_journal(args.journal_path)
+    print_analysis(events)
 
 
 def analyze(args):
@@ -67,18 +85,7 @@ def analyze(args):
     if args.cloudinit_log_path:
         events += analyze_cloudinit(args.cloudinit_log_path)
 
-    events = sorted(events, key=lambda x: x.timestamp_realtime)
-    event_dicts = [e.as_dict() for e in events]
-
-    warnings = [e for e in event_dicts if e["label"].startswith("WARNING")]
-    errors = [e for e in event_dicts if e["label"].startswith("ERROR")]
-
-    output = {
-        "events": event_dicts,
-        "warnings": warnings,
-        "errors": errors,
-    }
-    print(json.dumps(output, indent=4))
+    print_analysis(events)
 
 
 def main_help(parser, _):
@@ -93,18 +100,38 @@ def main():
     parser.set_defaults(func=lambda x: main_help(parser, x))
 
     subparsers = parser.add_subparsers()
-    analyze_parser = subparsers.add_parser("analyze")
-    analyze_parser.add_argument(
-        "--journal-json-path",
-        default="local",
-        help="journal json logs path, use 'local' to fetch directly",
-    )
+    analyze_parser = subparsers.add_parser("analyze-cloudinit")
     analyze_parser.add_argument(
         "--cloudinit-log-path",
-        default="local",
+        default="/var/log/cloud-init.log",
         help="cloudinit logs path, use 'local' to fetch directly",
+        type=Path,
     )
-    analyze_parser.set_defaults(func=analyze)
+    analyze_parser.set_defaults(func=main_analyze_cloudinit)
+
+    analyze_parser = subparsers.add_parser("analyze-journal")
+    analyze_parser.add_argument(
+        "--journal-path",
+        default="/var/log/journal",
+        help="journal directory",
+        type=Path,
+    )
+    analyze_parser.set_defaults(func=main_analyze_journal)
+
+    analyze_parser = subparsers.add_parser("analyze")
+    analyze_parser.add_argument(
+        "--cloudinit-log-path",
+        default="/var/log/cloud-init.log",
+        help="cloudinit logs path, use 'local' to fetch directly",
+        type=Path,
+    )
+    analyze_parser.add_argument(
+        "--journal-path",
+        default="/var/log/journal",
+        help="journal directory",
+        type=Path,
+    )
+    analyze_parser.set_defaults(func=main_analyze)
 
     args = parser.parse_args()
 
