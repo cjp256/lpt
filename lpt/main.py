@@ -96,10 +96,12 @@ def main():
     analyze_parser = subparsers.add_parser("analyze")
     analyze_parser.add_argument(
         "--journal-json-path",
+        default="local",
         help="journal json logs path, use 'local' to fetch directly",
     )
     analyze_parser.add_argument(
         "--cloudinit-log-path",
+        default="local",
         help="cloudinit logs path, use 'local' to fetch directly",
     )
     analyze_parser.set_defaults(func=analyze)
