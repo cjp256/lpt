@@ -39,12 +39,12 @@ def print_analysis(events: List[Event]) -> None:
 def analyze_cloudinit(
     log_path: Path = Path("/var/log/cloud-init.log"),
 ) -> List[CloudInit]:
-    logger.debug("Analyzing: %s", log_path)
+    logger.debug("Analyzing cloud-init logs: %s", log_path)
     return CloudInit.parse(log_path)
 
 
 def analyze_journal(journal_path: Path = Path("/var/log/journal")) -> List[Journal]:
-    logger.debug("Analyzing: %s", journal_path)
+    logger.debug("Analyzing journal logs: %s", journal_path)
     return Journal.load_journal_path(journal_path)
 
 
