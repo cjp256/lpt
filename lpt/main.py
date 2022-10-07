@@ -38,52 +38,46 @@ def print_analysis(events: List[Event]) -> None:
 
 def analyze_cloudinit(
     log_path: Path = Path("/var/log/cloud-init.log"),
-) -> List[Event]:
+) -> List[CloudInit]:
     logger.debug("Analyzing: %s", log_path)
-    cloudinits = CloudInit.parse(log_path)
-
-    events = []
-    for cloudinit in cloudinits:
-        events += cloudinit.get_events_of_interest()
-
-    return events
+    return CloudInit.parse(log_path)
 
 
-def analyze_journal(journal_path: Path = Path("/var/log/journal")) -> List[Event]:
+def analyze_journal(journal_path: Path = Path("/var/log/journal")) -> List[Journal]:
     logger.debug("Analyzing: %s", journal_path)
-    journals = Journal.load_journal_path(journal_path)
-
-    events = []
-    for journal in journals:
-        events += journal.get_events_of_interest()
-
-    return events
+    return Journal.load_journal_path(journal_path)
 
 
 def main_analyze(args) -> None:
-    events = analyze_cloudinit(args.cloudinit_log_path)
-    events += analyze_journal(args.journal_path)
+    events = []
+
+    cloudinits = analyze_cloudinit(args.cloudinit_log_path)
+    for cloudinit in cloudinits:
+        events += cloudinit.get_events_of_interest()
+
+    journals = analyze_journal(args.journal_path)
+    for journal in journals:
+        events += journal.get_events_of_interest()
+
     print_analysis(events)
 
 
 def main_analyze_cloudinit(args) -> None:
-    events = analyze_cloudinit(args.cloudinit_log_path)
+    events = []
+
+    cloudinits = analyze_cloudinit(args.cloudinit_log_path)
+    for cloudinit in cloudinits:
+        events += cloudinit.get_events_of_interest()
+
     print_analysis(events)
 
 
 def main_analyze_journal(args) -> None:
-    events = analyze_journal(args.journal_path)
-    print_analysis(events)
+    events = []
 
-
-def analyze(args):
-    if args.journal_json_path:
-        events = analyze_journal(args.journal_json_path)
-    else:
-        events = []
-
-    if args.cloudinit_log_path:
-        events += analyze_cloudinit(args.cloudinit_log_path)
+    journals = analyze_journal(args.journal_path)
+    for journal in journals:
+        events += journal.get_events_of_interest()
 
     print_analysis(events)
 
