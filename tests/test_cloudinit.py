@@ -73,3 +73,21 @@ def test_reference_point():
         event_type="log",
         stage=None,
     )
+
+
+def test_log_with_colons():
+    data = "2022-10-07 14:10:48,482 - __init__.py[DEBUG]: {'MIME-Version': '1.0', 'Content-Type': 'text/x-not-multipart', 'Content-Disposition': 'attachment; filename=\"part-001\"'}"
+
+    entry = cloudinit.CloudInitEntry.parse(data)
+
+    assert entry == cloudinit.CloudInitEntry(
+        data="2022-10-07 14:10:48,482 - __init__.py[DEBUG]: {'MIME-Version': '1.0', 'Content-Type': 'text/x-not-multipart', 'Content-Disposition': 'attachment; filename=\"part-001\"'}",
+        log_level="DEBUG",
+        message="{'MIME-Version': '1.0', 'Content-Type': 'text/x-not-multipart', 'Content-Disposition': 'attachment; filename=\"part-001\"'}",
+        module="__init__.py",
+        result=None,
+        timestamp_realtime=datetime.datetime(2022, 10, 7, 14, 10, 48, 482000),
+        timestamp_monotonic=0.0,
+        event_type="log",
+        stage=None,
+    )

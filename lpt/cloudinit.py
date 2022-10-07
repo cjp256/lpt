@@ -55,14 +55,16 @@ class CloudInitEntry:
         stage = None
 
         # Finish event
-        line_match = re.search(r"(.*): (.*): (.*): (.*)", message)
+        line_match = re.search(r"finish: (.*): (.*): (.*)", message)
         if line_match:
-            event_type, stage, result, message = line_match.groups()
+            event_type = "finish"
+            stage, result, message = line_match.groups()
 
         # Start event
-        line_match = re.search(r"(.*): (.*): (.*)", message)
+        line_match = re.search(r"start: (.*): (.*)", message)
         if line_match:
-            event_type, stage, message = line_match.groups()
+            event_type = "start"
+            stage, message = line_match.groups()
 
         entry = cls(
             data=log_line,
@@ -123,6 +125,7 @@ class CloudInit:
         boot_entries: List[CloudInitEntry] = []
         boot_logs: List[str] = []
         reference_monotonic = None
+        last_timestamp = None
 
         logs = path.read_text(encoding="utf-8")
         for line in logs.splitlines():
@@ -132,6 +135,17 @@ class CloudInit:
                 continue
             finally:
                 boot_logs.append(line)
+
+            # Due to low resolution, add a microsecond to timestamp if it
+            # matches the previous record.
+            if (
+                last_timestamp is not None
+                and entry.timestamp_realtime <= last_timestamp
+            ):
+                entry.timestamp_realtime = last_timestamp + datetime.timedelta(
+                    microseconds=1
+                )
+            last_timestamp = entry.timestamp_realtime
 
             timestamp = entry.check_for_monotonic_reference()
             if timestamp is not None:
@@ -173,7 +187,7 @@ class CloudInit:
             and (event_type is None or event_type == e.event_type)
         ]
 
-    def get_events_of_interest(self) -> List[Event]:
+    def get_events_of_interest(self) -> List[Event]:  # pylint:disable=too-many-branches
         events = []
 
         for entry in self.find_entries("running 'init-local'"):
@@ -191,6 +205,15 @@ class CloudInit:
         for entry in self.find_entries("finished at"):
             events.append(entry.as_event("CLOUDINIT_FINISHED"))
 
+        for entry in self.find_entries("PPS type:"):
+            events.append(entry.as_event("CLOUDINIT_PPS_TYPE"))
+
+        for entry in self.find_entries("", event_type="start"):
+            events.append(entry.as_event("CLOUDINIT_FRAME_START"))
+
+        for entry in self.find_entries("", event_type="finish"):
+            events.append(entry.as_event("CLOUDINIT_FRAME_FINISH"))
+
         for entry in self.find_entries("ERROR"):
             events.append(entry.as_event("ERROR_CLOUDINIT_ERROR"))
 
@@ -202,6 +225,10 @@ class CloudInit:
 
         for entry in self.find_entries("Traceback"):
             events.append(entry.as_event("ERROR_CLOUDINIT_TRACEBACK"))
+
+        failed_entries = [e for e in self.entries if e.result not in (None, "SUCCESS")]
+        for entry in failed_entries:
+            events.append(entry.as_event(f"ERROR_UNEXPECTED_FAILURE {entry.result}"))
 
         for entry in self.find_entries("FAIL"):
             if "load_azure_ds_dir" in entry.message:
