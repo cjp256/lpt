@@ -52,10 +52,16 @@ def main_analyze(args) -> None:
     events: List[Event] = []
 
     cloudinits = analyze_cloudinit(args.cloudinit_log_path)
+    if args.boot:
+        cloudinits = cloudinits[-1:]
+
     for cloudinit in cloudinits:
         events += cloudinit.get_events_of_interest()
 
     journals = analyze_journal(args.journal_path)
+    if args.boot:
+        journals = journals[-1:]
+
     for journal in journals:
         events += journal.get_events_of_interest()
 
@@ -66,6 +72,9 @@ def main_analyze_cloudinit(args) -> None:
     events: List[Event] = []
 
     cloudinits = analyze_cloudinit(args.cloudinit_log_path)
+    if args.boot:
+        cloudinits = cloudinits[-1:]
+
     for cloudinit in cloudinits:
         events += cloudinit.get_events_of_interest()
 
@@ -76,6 +85,9 @@ def main_analyze_journal(args) -> None:
     events: List[Event] = []
 
     journals = analyze_journal(args.journal_path)
+    if args.boot:
+        journals = journals[-1:]
+
     for journal in journals:
         events += journal.get_events_of_interest()
 
@@ -95,6 +107,9 @@ def main():
 
     subparsers = parser.add_subparsers()
     analyze_parser = subparsers.add_parser("analyze-cloudinit")
+    parser.add_argument(
+        "--boot", help="only analyze this last boot", action="store_true"
+    )
     analyze_parser.add_argument(
         "--cloudinit-log-path",
         default="/var/log/cloud-init.log",
@@ -104,6 +119,9 @@ def main():
     analyze_parser.set_defaults(func=main_analyze_cloudinit)
 
     analyze_parser = subparsers.add_parser("analyze-journal")
+    parser.add_argument(
+        "--boot", help="only analyze this last boot", action="store_true"
+    )
     analyze_parser.add_argument(
         "--journal-path",
         default="/var/log/journal",
@@ -113,6 +131,9 @@ def main():
     analyze_parser.set_defaults(func=main_analyze_journal)
 
     analyze_parser = subparsers.add_parser("analyze")
+    parser.add_argument(
+        "--boot", help="only analyze this last boot", action="store_true"
+    )
     analyze_parser.add_argument(
         "--cloudinit-log-path",
         default="/var/log/cloud-init.log",
