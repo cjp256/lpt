@@ -55,16 +55,19 @@ class CloudInitEntry:
         stage = None
 
         # Finish event
-        line_match = re.search(r"finish: (.*): (.*): (.*)", message)
-        if line_match:
-            event_type = "finish"
-            stage, result, message = line_match.groups()
+        if message.startswith("finish:"):
+            split = message.split(": ")
+            event_type = split[0]
+            stage = split[1]
+            result = split[2]
+            message = ": ".join(split[3:])
 
         # Start event
-        line_match = re.search(r"start: (.*): (.*)", message)
-        if line_match:
-            event_type = "start"
-            stage, message = line_match.groups()
+        if message.startswith("start:"):
+            split = message.split(": ")
+            event_type = split[0]
+            stage = split[1]
+            message = ": ".join(split[2:])
 
         entry = cls(
             data=log_line,
@@ -228,6 +231,8 @@ class CloudInit:
 
         failed_entries = [e for e in self.entries if e.result not in (None, "SUCCESS")]
         for entry in failed_entries:
+            if entry.message == "load_azure_ds_dir":
+                continue
             events.append(entry.as_event(f"ERROR_UNEXPECTED_FAILURE {entry.result}"))
 
         for entry in self.find_entries("FAIL"):
