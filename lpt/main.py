@@ -107,7 +107,7 @@ def main():
 
     subparsers = parser.add_subparsers()
     analyze_parser = subparsers.add_parser("analyze-cloudinit")
-    parser.add_argument(
+    analyze_parser.add_argument(
         "--boot", help="only analyze this last boot", action="store_true"
     )
     analyze_parser.add_argument(
@@ -119,7 +119,7 @@ def main():
     analyze_parser.set_defaults(func=main_analyze_cloudinit)
 
     analyze_parser = subparsers.add_parser("analyze-journal")
-    parser.add_argument(
+    analyze_parser.add_argument(
         "--boot", help="only analyze this last boot", action="store_true"
     )
     analyze_parser.add_argument(
@@ -131,7 +131,7 @@ def main():
     analyze_parser.set_defaults(func=main_analyze_journal)
 
     analyze_parser = subparsers.add_parser("analyze")
-    parser.add_argument(
+    analyze_parser.add_argument(
         "--boot", help="only analyze this last boot", action="store_true"
     )
     analyze_parser.add_argument(
