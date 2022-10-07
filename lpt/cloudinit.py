@@ -53,9 +53,16 @@ class CloudInitEntry:
         event_type = "log"
         result = None
         stage = None
+
+        # Finish event
         line_match = re.search(r"(.*): (.*): (.*): (.*)", message)
         if line_match:
             event_type, stage, result, message = line_match.groups()
+
+        # Start event
+        line_match = re.search(r"(.*): (.*): (.*)", message)
+        if line_match:
+            event_type, stage, message = line_match.groups()
 
         entry = cls(
             data=log_line,
@@ -71,6 +78,8 @@ class CloudInitEntry:
 
         if reference_monotonic:
             entry.estimate_timestamp_monotonic(reference_monotonic)
+        else:
+            entry.check_for_monotonic_reference()
 
         return entry
 
@@ -154,8 +163,15 @@ class CloudInit:
             cloudinits.append(boot_cloudinit)
         return cloudinits
 
-    def find_entries(self, pattern) -> List[CloudInitEntry]:
-        return [e for e in self.entries if re.search(pattern, e.message)]
+    def find_entries(
+        self, pattern, *, event_type: Optional[str] = None
+    ) -> List[CloudInitEntry]:
+        return [
+            e
+            for e in self.entries
+            if re.search(pattern, e.message)
+            and (event_type is None or event_type == e.event_type)
+        ]
 
     def get_events_of_interest(self) -> List[Event]:
         events = []
@@ -192,7 +208,7 @@ class CloudInit:
                 continue
             events.append(entry.as_event("ERROR_CLOUDINIT_FAIL"))
 
-        for entry in self.find_entries("_get_data")[1:]:
+        for entry in self.find_entries("_get_data", event_type="start")[1:]:
             events.append(entry.as_event("WARNING_CLOUDINIT_UNEXPECTED_GET_DATA"))
 
         return events

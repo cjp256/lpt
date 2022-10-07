@@ -181,12 +181,12 @@ class Journal:
             events.append(entry.as_event("TARGET_REACHED"))
 
         for entry in self.find_entries("System clock wrong"):
-            events.append(entry.as_event("CHRONY_SYSTEM_CLOCK_WRONG"))
+            events.append(entry.as_event("WARNING_CHRONY_SYSTEM_CLOCK_WRONG"))
 
         for entry in self.find_entries("System clock was stepped"):
-            events.append(entry.as_event("CHRONY_SYSTEM_CLOCK_STEPPED"))
+            events.append(entry.as_event("WARNING_CHRONY_SYSTEM_CLOCK_STEPPED"))
 
         for entry in self.find_entries("segfault"):
-            events.append(entry.as_event("SEGFAULT"))
+            events.append(entry.as_event("ERROR_SEGFAULT"))
 
         return events

@@ -69,7 +69,16 @@ def analyze(args):
 
     events = sorted(events, key=lambda x: x.timestamp_realtime)
     event_dicts = [e.as_dict() for e in events]
-    print(json.dumps(event_dicts, indent=4))
+
+    warnings = [e for e in event_dicts if e["label"].startswith("WARNING")]
+    errors = [e for e in event_dicts if e["label"].startswith("ERROR")]
+
+    output = {
+        "events": event_dicts,
+        "warnings": warnings,
+        "errors": errors,
+    }
+    print(json.dumps(output, indent=4))
 
 
 def main():
