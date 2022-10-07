@@ -26,15 +26,17 @@ def _init_logger(log_level: int):
 def analyze_journal(journal_json_path: str) -> List[Event]:
     logger.debug("Analyzing: %s", journal_json_path)
     if journal_json_path == "local":
-        journal = Journal.load_journal_host()
+        journals = Journal.load_journal_host()
     elif journal_json_path:
         journal_path = Path(journal_json_path)
-        journal = Journal.load_journal_path(journal_path)
+        journals = Journal.load_journal_path(journal_path)
     else:
         return []
 
-    events = journal.get_events_of_interest()
-    events = sorted(events, key=lambda x: x.timestamp_monotonic)
+    events = []
+    for journal in journals:
+        events += journal.get_events_of_interest()
+
     return events
 
 
@@ -48,9 +50,11 @@ def analyze_cloudinit(cloudinit_log_path: str) -> List[Event]:
     else:
         return []
 
-    ci = CloudInit.parse(log_path)
-    events = ci.get_events_of_interest()
-    events = sorted(events, key=lambda x: x.timestamp_monotonic)
+    cloudinits = CloudInit.parse(log_path)
+    events = []
+    for cloudinit in cloudinits:
+        events += cloudinit.get_events_of_interest()
+
     return events
 
 
@@ -63,7 +67,7 @@ def analyze(args):
     if args.cloudinit_log_path:
         events += analyze_cloudinit(args.cloudinit_log_path)
 
-    events = sorted(events, key=lambda x: x.timestamp_monotonic)
+    events = sorted(events, key=lambda x: x.timestamp_realtime)
     event_dicts = [e.as_dict() for e in events]
     print(json.dumps(event_dicts, indent=4))
 

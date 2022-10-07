@@ -9,7 +9,8 @@ poetry install
 ## Run analysis using existing logs
 
 ```
-poetry run lpt analyze --journal-json-path tests/data/single-instance/journal.txt  --cloudinit-log-path tests/data/single-instance/cloud-init.log
+poetry run lpt analyze --journal-json-path tests/data/one-boot/journal.txt  --cloudinit-log-path tests/data/one-boot/cloud-init.log
+poetry run lpt analyze --journal-json-path tests/data/two-boot/journal.txt  --cloudinit-log-path tests/data/two-boot/cloud-init.log
 ```
 
 ## Run analysis on local system

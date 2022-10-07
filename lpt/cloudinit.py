@@ -85,6 +85,21 @@ class CloudInitEntry:
             self.timestamp_realtime - reference_monotonic
         ).total_seconds()
 
+    def check_for_monotonic_reference(self) -> Optional[datetime.datetime]:
+        uptime_match = re.search(".* Up (.*) seconds", self.message)
+        if not uptime_match:
+            return None
+
+        monotonic_time = float(uptime_match.groups()[0])
+        reference_monotonic = calculate_reference_timestamp(
+            self.timestamp_realtime, monotonic_time
+        )
+        self.estimate_timestamp_monotonic(reference_monotonic)
+        return reference_monotonic
+
+    def is_start_of_boot_record(self) -> bool:
+        return bool(re.search("Cloud-init .* running 'init-local'", self.message))
+
 
 @dataclasses.dataclass
 class CloudInit:
@@ -93,32 +108,51 @@ class CloudInit:
     reference_monotonic: Optional[datetime.datetime]
 
     @classmethod
-    def parse(cls, path: Path = Path("/var/log/cloud-init.log")) -> "CloudInit":
-        entries = []
+    def parse(cls, path: Path = Path("/var/log/cloud-init.log")) -> List["CloudInit"]:
+        """Parse cloud-init log and split by boot."""
+        cloudinits = []
+        boot_entries: List[CloudInitEntry] = []
+        boot_logs: List[str] = []
         reference_monotonic = None
 
         logs = path.read_text(encoding="utf-8")
         for line in logs.splitlines():
             try:
                 entry = CloudInitEntry.parse(line, reference_monotonic)
-                entries.append(entry)
-                uptime_match = re.search(".* Up (.*) seconds", entry.message)
-                if uptime_match:
-                    monotonic_time = float(uptime_match.groups()[0])
-                    reference_monotonic = calculate_reference_timestamp(
-                        entry.timestamp_realtime, monotonic_time
-                    )
-                    entry.estimate_timestamp_monotonic(reference_monotonic)
-
             except ValueError:
-                pass
+                continue
+            finally:
+                boot_logs.append(line)
 
-        if reference_monotonic:
-            for entry in entries:
-                if entry.timestamp_monotonic == 0.0:
-                    entry.estimate_timestamp_monotonic(reference_monotonic)
+            timestamp = entry.check_for_monotonic_reference()
+            if timestamp is not None:
+                reference_monotonic = timestamp
 
-        return cls(logs=logs, entries=entries, reference_monotonic=reference_monotonic)
+            if entry.is_start_of_boot_record() and boot_entries:
+                # New boot, ensure all entries have estimated monotonic.
+                for entry in boot_entries:
+                    if entry.timestamp_monotonic == 0.0 and reference_monotonic:
+                        entry.estimate_timestamp_monotonic(reference_monotonic)
+
+                boot_cloudinit = CloudInit(
+                    entries=boot_entries,
+                    reference_monotonic=reference_monotonic,
+                    logs="\n".join(boot_logs),
+                )
+                cloudinits.append(boot_cloudinit)
+                boot_entries = [entry]
+                boot_logs = []
+            else:
+                boot_entries.append(entry)
+
+        if boot_entries:
+            boot_cloudinit = CloudInit(
+                entries=boot_entries,
+                reference_monotonic=reference_monotonic,
+                logs="\n".join(boot_logs),
+            )
+            cloudinits.append(boot_cloudinit)
+        return cloudinits
 
     def find_entries(self, pattern) -> List[CloudInitEntry]:
         return [e for e in self.entries if re.search(pattern, e.message)]

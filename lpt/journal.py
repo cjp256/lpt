@@ -80,24 +80,39 @@ class JournalEntry:
 
 @dataclasses.dataclass
 class Journal:
-    logs: bytes
     entries: List[JournalEntry]
 
     @classmethod
-    def load_journal_host(cls) -> "Journal":
+    def load_journal_host(cls) -> List["Journal"]:
         proc = subprocess.run(
             ["journalctl", "-o", "json"], capture_output=True, check=True
         )
         return cls.parse_json(proc.stdout)
 
     @classmethod
-    def load_journal_path(cls, path: Path) -> "Journal":
+    def load_journal_path(cls, path: Path) -> List["Journal"]:
         return cls.parse_json(path.read_bytes())
 
     @classmethod
-    def parse_json(cls, logs: bytes) -> "Journal":
+    def parse_json(cls, logs: bytes) -> List["Journal"]:
+        """Parse journal and split by boot."""
+        boot_entries: List[JournalEntry] = []
+        journals = []
+
         entries = [JournalEntry.parse(json.loads(log)) for log in logs.splitlines()]
-        return cls(logs=logs, entries=entries)
+        for entry in entries:
+            if entry.message.startswith("Linux version") and boot_entries:
+                boot_journal = cls(entries=boot_entries)
+                journals.append(boot_journal)
+                boot_entries = [entry]
+            else:
+                boot_entries.append(entry)
+
+        if boot_entries:
+            boot_journal = cls(entries=boot_entries)
+            journals.append(boot_journal)
+
+        return journals
 
     def find_entries(self, pattern) -> List[JournalEntry]:
         return [e for e in self.entries if re.search(pattern, e.message)]
@@ -164,5 +179,14 @@ class Journal:
 
         for entry in self.find_entries(r"^Reached target"):
             events.append(entry.as_event("TARGET_REACHED"))
+
+        for entry in self.find_entries("System clock wrong"):
+            events.append(entry.as_event("CHRONY_SYSTEM_CLOCK_WRONG"))
+
+        for entry in self.find_entries("System clock was stepped"):
+            events.append(entry.as_event("CHRONY_SYSTEM_CLOCK_STEPPED"))
+
+        for entry in self.find_entries("segfault"):
+            events.append(entry.as_event("SEGFAULT"))
 
         return events
