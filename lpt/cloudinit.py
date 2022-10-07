@@ -175,4 +175,24 @@ class CloudInit:
         for entry in self.find_entries("finished at"):
             events.append(entry.as_event("CLOUDINIT_FINISHED"))
 
+        for entry in self.find_entries("ERROR"):
+            events.append(entry.as_event("ERROR_CLOUDINIT_ERROR"))
+
+        for entry in self.find_entries("WARNING"):
+            events.append(entry.as_event("ERROR_CLOUDINIT_WARNING"))
+
+        for entry in self.find_entries("CRITICAL"):
+            events.append(entry.as_event("ERROR_CLOUDINIT_CRITICAL"))
+
+        for entry in self.find_entries("Traceback"):
+            events.append(entry.as_event("ERROR_CLOUDINIT_TRACEBACK"))
+
+        for entry in self.find_entries("FAIL"):
+            if "load_azure_ds_dir" in entry.message:
+                continue
+            events.append(entry.as_event("ERROR_CLOUDINIT_FAIL"))
+
+        for entry in self.find_entries("_get_data")[1:]:
+            events.append(entry.as_event("WARNING_CLOUDINIT_UNEXPECTED_GET_DATA"))
+
         return events
