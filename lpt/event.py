@@ -1,24 +1,23 @@
 import dataclasses
 import datetime
 import logging
-from typing import Optional
 
 logger = logging.getLogger("lpt.event")
 
 
 @dataclasses.dataclass
 class Event:
-    label: Optional[str]
-    data: Optional[str]
-    source: str
+    label: str
     timestamp_realtime: datetime.datetime
     timestamp_monotonic: float
+    source: str
 
-    def estimate_monotonic(self, reference_event: "Event") -> None:
-        time_diff = (
-            self.timestamp_realtime - reference_event.timestamp_realtime
+    def estimate_timestamp_monotonic(
+        self, reference_monotonic: datetime.datetime
+    ) -> None:
+        self.timestamp_monotonic = (
+            self.timestamp_realtime - reference_monotonic
         ).total_seconds()
-        self.timestamp_monotonic = reference_event.timestamp_monotonic + time_diff
 
     def as_dict(self) -> dict:
         obj = self.__dict__.copy()

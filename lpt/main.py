@@ -49,7 +49,7 @@ def analyze_journal(journal_path: Path = Path("/var/log/journal")) -> List[Journ
 
 
 def main_analyze(args) -> None:
-    events = []
+    events: List[Event] = []
 
     cloudinits = analyze_cloudinit(args.cloudinit_log_path)
     for cloudinit in cloudinits:
@@ -63,7 +63,7 @@ def main_analyze(args) -> None:
 
 
 def main_analyze_cloudinit(args) -> None:
-    events = []
+    events: List[Event] = []
 
     cloudinits = analyze_cloudinit(args.cloudinit_log_path)
     for cloudinit in cloudinits:
@@ -73,7 +73,7 @@ def main_analyze_cloudinit(args) -> None:
 
 
 def main_analyze_journal(args) -> None:
-    events = []
+    events: List[Event] = []
 
     journals = analyze_journal(args.journal_path)
     for journal in journals:

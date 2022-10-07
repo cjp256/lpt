@@ -14,8 +14,8 @@ logger = logging.getLogger("lpt.cloudinit")
 
 
 @dataclasses.dataclass
-class CloudInitEntry:
-    data: str
+class CloudInitEvent(Event):
+    log_line: str
     log_level: str
     message: str
     module: str
@@ -25,14 +25,18 @@ class CloudInitEntry:
     event_type: str
     stage: Optional[str]
 
-    def as_event(self, label: str) -> Event:
-        return Event(
-            label=label,
-            data=self.data,
-            source="cloudinit",
-            timestamp_realtime=self.timestamp_realtime,
-            timestamp_monotonic=self.timestamp_monotonic,
-        )
+
+@dataclasses.dataclass
+class CloudInitEntry:
+    log_line: str
+    log_level: str
+    message: str
+    module: str
+    result: Optional[str]
+    timestamp_realtime: datetime.datetime
+    timestamp_monotonic: float
+    event_type: str
+    stage: Optional[str]
 
     @classmethod
     def parse(
@@ -70,7 +74,7 @@ class CloudInitEntry:
             message = ": ".join(split[2:])
 
         entry = cls(
-            data=log_line,
+            log_line=log_line,
             event_type=event_type,
             log_level=log_level,
             message=message,
@@ -113,6 +117,9 @@ class CloudInitEntry:
 
     def is_start_of_boot_record(self) -> bool:
         return bool(re.search("Cloud-init .* running 'init-local'", self.message))
+
+    def as_event(self, label: str) -> CloudInitEvent:
+        return CloudInitEvent(**self.__dict__, label=label, source="cloudinit")
 
 
 @dataclasses.dataclass
@@ -190,7 +197,9 @@ class CloudInit:
             and (event_type is None or event_type == e.event_type)
         ]
 
-    def get_events_of_interest(self) -> List[Event]:  # pylint:disable=too-many-branches
+    def get_events_of_interest(  # pylint:disable=too-many-branches
+        self,
+    ) -> List[CloudInitEvent]:
         events = []
 
         for entry in self.find_entries("running 'init-local'"):

@@ -15,19 +15,15 @@ logger = logging.getLogger("lpt.journal")
 
 
 @dataclasses.dataclass
+class JournalEvent(Event):
+    message: str
+
+
+@dataclasses.dataclass
 class JournalEntry:
     message: str
     timestamp_realtime: datetime.datetime
     timestamp_monotonic: float
-
-    def as_event(self, label: str) -> Event:
-        return Event(
-            label=label,
-            data=self.message,
-            source="journal",
-            timestamp_realtime=self.timestamp_realtime,
-            timestamp_monotonic=self.timestamp_monotonic,
-        )
 
     @classmethod
     def parse(cls, entry: dict) -> "JournalEntry":
@@ -76,6 +72,9 @@ class JournalEntry:
         except ValueError as error:
             logger.error("Failed to parse ts=%r (%r)", ts, error)
             raise
+
+    def as_event(self, label: str) -> JournalEvent:
+        return JournalEvent(**self.__dict__.copy(), label=label, source="journal")
 
 
 @dataclasses.dataclass
@@ -131,7 +130,9 @@ class Journal:
     def find_entries(self, pattern) -> List[JournalEntry]:
         return [e for e in self.entries if re.search(pattern, e.message)]
 
-    def get_events_of_interest(self) -> List[Event]:  # pylint:disable=too-many-branches
+    def get_events_of_interest(  # pylint:disable=too-many-branches
+        self,
+    ) -> List[JournalEvent]:
         events = []
 
         for entry in self.find_entries("Linux version"):
