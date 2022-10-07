@@ -81,11 +81,16 @@ def analyze(args):
     print(json.dumps(output, indent=4))
 
 
+def main_help(parser, _):
+    parser.print_help()
+
+
 def main():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument(
         "--debug", help="output debug info", action="store_true", default=True
     )
+    parser.set_defaults(func=lambda x: main_help(parser, x))
 
     subparsers = parser.add_subparsers()
     analyze_parser = subparsers.add_parser("analyze")
