@@ -158,6 +158,8 @@ def main():
     graph_parser.add_argument(
         "--service",
         help="service to query dependencies for",
+        default="sshd.service",
+        required=True,
     )
     graph_parser.set_defaults(func=main_graph)
 
