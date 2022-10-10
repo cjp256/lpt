@@ -109,7 +109,8 @@ def walk_dependencies(
     service_name: str,
     *,
     filter_services: List[str],
-    filter_conditional_result_no: bool = True,
+    filter_conditional_result_no: bool = False,
+    filter_exec_main_start_not_available: bool = True,
 ) -> Set[Tuple[Service, Service]]:
     deps = set()
     seen = set()
@@ -136,6 +137,12 @@ def walk_dependencies(
                 continue
 
             if filter_conditional_result_no and not service_dep.condition_result:
+                continue
+
+            if (
+                filter_exec_main_start_not_available
+                and not service_dep.exec_main_start_timestamp_monotonic
+            ):
                 continue
 
             deps.add((service, service_dep))
