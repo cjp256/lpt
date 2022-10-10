@@ -128,6 +128,8 @@ def walk_dependencies(
                 service_dep = Service.query(dep_name)
                 services[dep_name] = service_dep
 
+            if dep_name == "systemd-journald.socket":
+                continue
             # if (
             #    service_dep.exec_main_start_timestamp_monotonic
             #    or service_dep.active_enter_timestamp_monotonic
