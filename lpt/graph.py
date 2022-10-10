@@ -119,7 +119,8 @@ def walk_dependencies(
                 service_dep = Service.query(dep_name)
                 services[dep_name] = service_dep
 
-            deps.add((service, service_dep))
+            if service_dep.exec_main_start_timestamp_monotonic:
+                deps.add((service, service_dep))
             _walk_dependencies(dep_name)
 
     _walk_dependencies(service_name)
