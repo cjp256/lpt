@@ -7,6 +7,7 @@ from typing import List
 
 from .cloudinit import CloudInit
 from .event import Event
+from .graph import generate_dependency_digraph
 from .journal import Journal
 
 logger = logging.getLogger("lpt")
@@ -94,6 +95,11 @@ def main_analyze_journal(args) -> None:
     print_analysis(events)
 
 
+def main_graph(args) -> None:
+    graph = generate_dependency_digraph(args.service)
+    print(graph)
+
+
 def main_help(parser, _):
     parser.print_help()
 
@@ -147,6 +153,13 @@ def main():
         type=Path,
     )
     analyze_parser.set_defaults(func=main_analyze)
+
+    graph_parser = subparsers.add_parser("graph")
+    graph_parser.add_argument(
+        "--service",
+        help="service to query dependencies for",
+    )
+    graph_parser.set_defaults(func=main_graph)
 
     args = parser.parse_args()
 
