@@ -2,7 +2,7 @@ import dataclasses
 import logging
 import subprocess
 import sys
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, FrozenSet, Optional, Set, Tuple
 
 logger = logging.getLogger("lpt.graph")
 
@@ -10,7 +10,7 @@ logger = logging.getLogger("lpt.graph")
 @dataclasses.dataclass(frozen=True, eq=True)
 class Service:
     name: str
-    afters: List[str]
+    afters: FrozenSet[str]
     time_to_activate: Optional[float]
     active_enter_timestamp_monotonic: Optional[float]
     inactive_exit_timestamp_monotonic: Optional[float]
@@ -23,7 +23,7 @@ class Service:
 
     @classmethod
     def query(cls, service_name: str) -> "Service":
-        afters: List[str] = []
+        afters: FrozenSet[str] = frozenset()
         active_enter_timestamp_monotonic: Optional[float] = None
         inactive_exit_timestamp_monotonic: Optional[float] = None
         time_to_activate: float = 0.0
@@ -47,7 +47,7 @@ class Service:
             if line.startswith(field):
                 field_len = len(field)
                 line = line[field_len:]
-                afters = sorted(set(line.split()))
+                afters = frozenset(line.split())
 
             field = "ActiveEnterTimestampMonotonic="
             if line.startswith(field):
