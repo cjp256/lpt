@@ -114,7 +114,7 @@ def generate_dependency_digraph(service_name: str) -> str:
     def _label_svc(service: Service) -> str:
         label = service.name
         if service.time_to_activate:
-            label += f" +{service.time_to_activate * 100:.02}ms"
+            label += f" +{service.time_to_activate * 100:.02f}ms"
 
         return label
 
