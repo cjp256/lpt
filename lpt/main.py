@@ -7,7 +7,7 @@ from typing import List
 
 from .cloudinit import CloudInit
 from .event import Event
-from .graph import generate_dependency_digraph
+from .graph import generate_dependency_digraph, walk_dependencies
 from .journal import Journal
 
 logger = logging.getLogger("lpt")
@@ -96,7 +96,15 @@ def main_analyze_journal(args) -> None:
 
 
 def main_graph(args) -> None:
-    graph = generate_dependency_digraph(args.service)
+    dependencies = walk_dependencies(
+        args.service,
+        filter_services=sorted(args.filter_service),
+        filter_conditional_result_no=args.filter_conditional_result_no,
+    )
+    graph = generate_dependency_digraph(
+        args.service,
+        dependencies=dependencies,
+    )
     print(graph)
 
 
@@ -155,11 +163,21 @@ def main():
     analyze_parser.set_defaults(func=main_analyze)
 
     graph_parser = subparsers.add_parser("graph")
+    analyze_parser.add_argument(
+        "--filter-conditional-result-no",
+        help="Filter services that are not started due to conditional",
+        action="store_true",
+    )
+    analyze_parser.add_argument(
+        "--filter-service",
+        help="Filter services by name",
+        action="extend",
+        nargs="+",
+    )
     graph_parser.add_argument(
         "--service",
         help="service to query dependencies for",
         default="sshd.service",
-        required=True,
     )
     graph_parser.set_defaults(func=main_graph)
 
