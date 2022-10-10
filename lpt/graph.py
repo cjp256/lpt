@@ -7,6 +7,9 @@ logger = logging.getLogger("lpt.graph")
 
 
 def get_afters(service: str) -> Set[str]:
+    if service.startswith("-."):
+        return set()
+
     try:
         proc = subprocess.run(
             ["systemctl", "show", "-P", "After", service],
