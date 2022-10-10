@@ -124,7 +124,7 @@ def walk_dependencies(
                 or service_dep.active_enter_timestamp_monotonic
             ):
                 deps.add((service, service_dep))
-            _walk_dependencies(dep_name)
+                _walk_dependencies(dep_name)
 
     _walk_dependencies(service_name)
     return deps
