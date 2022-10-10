@@ -7,7 +7,7 @@ from typing import Dict, Optional, Set, Tuple
 logger = logging.getLogger("lpt.graph")
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True, eq=True)
 class Service:
     name: str
     afters: Set[str]
