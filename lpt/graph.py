@@ -29,6 +29,9 @@ def get_afters(service: str) -> Set[str]:
 
 
 def verify_usage(service: str) -> bool:
+    if service.startswith("-."):
+        return True
+
     try:
         subprocess.run(
             ["systemctl", "status", service], check=True, capture_output=True, text=True
