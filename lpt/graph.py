@@ -56,25 +56,25 @@ class Service:
             if line.startswith(field):
                 field_len = len(field)
                 line = line[field_len:]
-                active_enter_timestamp_monotonic = float(line) / 1000000
+                active_enter_timestamp_monotonic = float(line) / 100000
 
             field = "InactiveExitTimestampMonotonic="
             if line.startswith(field):
                 field_len = len(field)
                 line = line[field_len:]
-                inactive_exit_timestamp_monotonic = float(line) / 1000000
+                inactive_exit_timestamp_monotonic = float(line) / 100000
 
             field = "ExecMainExitTimestampMonotonic="
             if line.startswith(field):
                 field_len = len(field)
                 line = line[field_len:]
-                exec_main_exit_timestamp_monotonic = float(line) / 1000000
+                exec_main_exit_timestamp_monotonic = float(line) / 100000
 
             field = "ExecMainStartTimestampMonotonic="
             if line.startswith(field):
                 field_len = len(field)
                 line = line[field_len:]
-                exec_main_start_timestamp_monotonic = float(line) / 1000000
+                exec_main_start_timestamp_monotonic = float(line) / 100000
 
         if active_enter_timestamp_monotonic and inactive_exit_timestamp_monotonic:
             time_to_activate = (
