@@ -1,7 +1,6 @@
 import dataclasses
 import logging
 import subprocess
-import sys
 from typing import Dict, FrozenSet, Optional, Set, Tuple
 
 logger = logging.getLogger("lpt.graph")
@@ -36,7 +35,7 @@ class Service:
                 text=True,
             )
         except subprocess.CalledProcessError as error:
-            print(f"failed to show service={service_name} {error}", file=sys.stderr)
+            logger.error("failed to show service=%s (error=%r)", service_name, error)
             raise
 
         lines = proc.stdout.strip().splitlines()
@@ -97,8 +96,6 @@ def walk_dependencies(
             else:
                 service_dep = Service.query(dep_name)
                 services[dep_name] = service_dep
-
-            print(service, service_dep)
 
             deps.add((service, service_dep))
             _walk_dependencies(dep_name)
