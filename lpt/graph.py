@@ -11,6 +11,7 @@ class Service:
     name: str
     afters: FrozenSet[str]
     time_to_activate: Optional[float]
+    condition_result: Optional[bool]
     active_enter_timestamp_monotonic: Optional[float]
     inactive_exit_timestamp_monotonic: Optional[float]
     exec_main_start_timestamp_monotonic: Optional[float]
@@ -29,6 +30,7 @@ class Service:
         inactive_exit_timestamp_monotonic: Optional[float] = None
         exec_main_start_timestamp_monotonic: Optional[float] = None
         exec_main_exit_timestamp_monotonic: Optional[float] = None
+        condition_result: Optional[bool] = None
         time_to_activate: float = 0.0
 
         try:
@@ -76,6 +78,12 @@ class Service:
                 line = line[field_len:]
                 exec_main_start_timestamp_monotonic = float(line) / 100000
 
+            field = "ConditionResult="
+            if line.startswith(field):
+                field_len = len(field)
+                line = line[field_len:]
+                condition_result = line != "no"
+
         if active_enter_timestamp_monotonic and inactive_exit_timestamp_monotonic:
             time_to_activate = (
                 active_enter_timestamp_monotonic - inactive_exit_timestamp_monotonic
@@ -93,6 +101,7 @@ class Service:
             exec_main_start_timestamp_monotonic=exec_main_start_timestamp_monotonic,
             exec_main_exit_timestamp_monotonic=exec_main_exit_timestamp_monotonic,
             time_to_activate=time_to_activate,
+            condition_result=condition_result,
         )
 
 
