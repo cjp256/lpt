@@ -13,6 +13,8 @@ class Service:
     time_to_activate: Optional[float]
     active_enter_timestamp_monotonic: Optional[float]
     inactive_exit_timestamp_monotonic: Optional[float]
+    exec_main_start_timestamp_monotonic: Optional[float]
+    exec_main_exit_timestamp_monotonic: Optional[float]
 
     def is_valid(self) -> bool:
         return bool(
@@ -25,6 +27,8 @@ class Service:
         afters: FrozenSet[str] = frozenset()
         active_enter_timestamp_monotonic: Optional[float] = None
         inactive_exit_timestamp_monotonic: Optional[float] = None
+        exec_main_start_timestamp_monotonic: Optional[float] = None
+        exec_main_exit_timestamp_monotonic: Optional[float] = None
         time_to_activate: float = 0.0
 
         try:
@@ -60,9 +64,25 @@ class Service:
                 line = line[field_len:]
                 inactive_exit_timestamp_monotonic = float(line) / 1000000
 
+            field = "ExecMainExitTimestampMonotonic="
+            if line.startswith(field):
+                field_len = len(field)
+                line = line[field_len:]
+                exec_main_exit_timestamp_monotonic = float(line) / 1000000
+
+            field = "ExecMainStartTimestampMonotonic="
+            if line.startswith(field):
+                field_len = len(field)
+                line = line[field_len:]
+                exec_main_start_timestamp_monotonic = float(line) / 1000000
+
         if active_enter_timestamp_monotonic and inactive_exit_timestamp_monotonic:
             time_to_activate = (
                 active_enter_timestamp_monotonic - inactive_exit_timestamp_monotonic
+            )
+        elif exec_main_exit_timestamp_monotonic and exec_main_start_timestamp_monotonic:
+            time_to_activate = (
+                exec_main_exit_timestamp_monotonic - exec_main_start_timestamp_monotonic
             )
 
         return cls(
@@ -70,6 +90,8 @@ class Service:
             afters=afters,
             active_enter_timestamp_monotonic=active_enter_timestamp_monotonic,
             inactive_exit_timestamp_monotonic=inactive_exit_timestamp_monotonic,
+            exec_main_start_timestamp_monotonic=exec_main_start_timestamp_monotonic,
+            exec_main_exit_timestamp_monotonic=exec_main_exit_timestamp_monotonic,
             time_to_activate=time_to_activate,
         )
 
