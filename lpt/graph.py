@@ -111,9 +111,18 @@ def generate_dependency_digraph(service_name: str) -> str:
     services: Dict[str, Service] = {}
     deps = walk_dependencies(service_name, services)
 
+    def _label_svc(service: Service) -> str:
+        label = service.name
+        if service.time_to_activate:
+            label += f" @{service.time_to_activate}s"
+
+        return label
+
     edges = set()
     for s1, s2 in sorted(deps, key=lambda x: x[0].name):
-        edges.add(f'  "{s1}"->"{s2}" [color="green"];')
+        label_s1 = _label_svc(s1)
+        label_s2 = _label_svc(s2)
+        edges.add(f'  "{label_s1}"->"{label_s2}" [color="green"];')
 
     lines = [f'digraph "{service_name}" {{', "  rankdir=LR;", *sorted(edges), "}"]
     return "\n".join(lines)
