@@ -163,12 +163,12 @@ def main():
     analyze_parser.set_defaults(func=main_analyze)
 
     graph_parser = subparsers.add_parser("graph")
-    analyze_parser.add_argument(
+    graph_parser.add_argument(
         "--filter-conditional-result-no",
         help="Filter services that are not started due to conditional",
         action="store_true",
     )
-    analyze_parser.add_argument(
+    graph_parser.add_argument(
         "--filter-service",
         help="Filter services by name",
         action="extend",
