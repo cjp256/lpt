@@ -96,6 +96,9 @@ def walk_dependencies(
                 service_dep = services[dep_name]
             else:
                 service_dep = Service.query(dep_name)
+                services[dep_name] = service_dep
+
+            print(service, service_dep)
 
             deps.add((service, service_dep))
             _walk_dependencies(dep_name)
