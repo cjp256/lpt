@@ -35,6 +35,7 @@ def query_systemctl_show(
     if service_name:
         cmd.extend(["--", service_name])
     try:
+        logger.debug("Executing: %r", cmd)
         proc = subprocess.run(
             cmd,
             check=True,
