@@ -13,3 +13,8 @@ tests:
 sync: tests
 	git commit -a -m sync
 	git push origin HEAD:main
+
+.PHONY: force-sync
+force-sync:
+	git commit -a -m sync
+	git push origin HEAD:main

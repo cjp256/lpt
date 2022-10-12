@@ -1,4 +1,5 @@
 import dataclasses
+import datetime
 import logging
 import subprocess
 from typing import Dict, FrozenSet, List, Optional, Set, Tuple
@@ -6,16 +7,93 @@ from typing import Dict, FrozenSet, List, Optional, Set, Tuple
 logger = logging.getLogger("lpt.graph")
 
 
+def convert_systemctl_timestamp(timestamp: str) -> datetime.datetime:
+    return datetime.datetime.strptime(timestamp, "%a %Y-%m-%d %H:%M:%S %Z")
+
+
+def convert_systemctl_timestamp_opt(timestamp: str) -> Optional[datetime.datetime]:
+    if timestamp == "n/a":
+        return None
+
+    return convert_systemctl_timestamp(timestamp)
+
+
+def convert_systemctl_monotonic(timestamp: str) -> float:
+    return float(timestamp) / 100000
+
+
+def convert_systemctl_bool(value: str) -> bool:
+    return not value == "no"
+
+
+def query_systemctl_show(
+    service_name: Optional[str] = None,
+) -> Dict[str, str]:
+    properties = {}
+
+    cmd = ["systemctl", "show"]
+    if service_name:
+        cmd.extend(["--", service_name])
+    try:
+        proc = subprocess.run(
+            cmd,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as error:
+        logger.error("cmd (%r) failed (error=%r)", cmd, error)
+        raise
+
+    lines = proc.stdout.strip().splitlines()
+    for line in lines:
+        line = line.strip()
+        key, value = line.split("#", 1)
+        assert key and value
+        properties[key] = value
+
+    return properties
+
+
+@dataclasses.dataclass(frozen=True, eq=True)
+class Systemd:
+    userspace_timestamp: datetime.datetime
+    userspace_timestamp_monotonic: float
+    finish_timestamp: datetime.datetime
+    finish_timestamp_monotonic: float
+
+    @classmethod
+    def query(cls) -> "Systemd":
+        properties = query_systemctl_show()
+
+        userspace_timestamp = convert_systemctl_timestamp(
+            properties["UserspaceTimestamp"]
+        )
+        userspace_timestamp_monotonic = convert_systemctl_monotonic(
+            properties["UserspaceTimestampMonotonic"]
+        )
+        finish_timestamp = convert_systemctl_timestamp(properties["FinishTimestamp"])
+        finish_timestamp_monotonic = convert_systemctl_monotonic(
+            properties["FinishTimestampMonotonic"]
+        )
+
+        return cls(
+            userspace_timestamp=userspace_timestamp,
+            userspace_timestamp_monotonic=userspace_timestamp_monotonic,
+            finish_timestamp=finish_timestamp,
+            finish_timestamp_monotonic=finish_timestamp_monotonic,
+        )
+
+
 @dataclasses.dataclass(frozen=True, eq=True)
 class Service:
     name: str
     afters: FrozenSet[str]
-    time_to_activate: Optional[float]
     condition_result: Optional[bool]
-    active_enter_timestamp_monotonic: Optional[float]
-    inactive_exit_timestamp_monotonic: Optional[float]
-    exec_main_start_timestamp_monotonic: Optional[float]
-    exec_main_exit_timestamp_monotonic: Optional[float]
+    active_enter_timestamp_monotonic: float
+    inactive_exit_timestamp_monotonic: float
+    exec_main_start_timestamp_monotonic: float
+    exec_main_exit_timestamp_monotonic: float
 
     def is_valid(self) -> bool:
         return bool(
@@ -23,75 +101,49 @@ class Service:
             or self.active_enter_timestamp_monotonic
         )
 
+    @property
+    def time_to_activate(self) -> float:
+        if (
+            self.active_enter_timestamp_monotonic
+            and self.inactive_exit_timestamp_monotonic
+        ):
+            return (
+                self.active_enter_timestamp_monotonic
+                - self.inactive_exit_timestamp_monotonic
+            )
+
+        if (
+            self.exec_main_exit_timestamp_monotonic
+            and self.exec_main_start_timestamp_monotonic
+        ):
+            return (
+                self.exec_main_exit_timestamp_monotonic
+                - self.exec_main_start_timestamp_monotonic
+            )
+
+        import pdb
+
+        pdb.set_trace()
+        return -1
+
     @classmethod
     def query(cls, service_name: str) -> "Service":
-        afters: FrozenSet[str] = frozenset()
-        active_enter_timestamp_monotonic: Optional[float] = None
-        inactive_exit_timestamp_monotonic: Optional[float] = None
-        exec_main_start_timestamp_monotonic: Optional[float] = None
-        exec_main_exit_timestamp_monotonic: Optional[float] = None
-        condition_result: Optional[bool] = None
-        time_to_activate: float = 0.0
+        properties = query_systemctl_show(service_name)
 
-        try:
-            proc = subprocess.run(
-                ["systemctl", "show", "--", service_name],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-        except subprocess.CalledProcessError as error:
-            logger.error("failed to show service=%s (error=%r)", service_name, error)
-            raise
-
-        lines = proc.stdout.strip().splitlines()
-        for line in lines:
-            line = line.strip()
-
-            field = "After="
-            if line.startswith(field):
-                field_len = len(field)
-                line = line[field_len:]
-                afters = frozenset(line.split())
-
-            field = "ActiveEnterTimestampMonotonic="
-            if line.startswith(field):
-                field_len = len(field)
-                line = line[field_len:]
-                active_enter_timestamp_monotonic = float(line) / 100000
-
-            field = "InactiveExitTimestampMonotonic="
-            if line.startswith(field):
-                field_len = len(field)
-                line = line[field_len:]
-                inactive_exit_timestamp_monotonic = float(line) / 100000
-
-            field = "ExecMainExitTimestampMonotonic="
-            if line.startswith(field):
-                field_len = len(field)
-                line = line[field_len:]
-                exec_main_exit_timestamp_monotonic = float(line) / 100000
-
-            field = "ExecMainStartTimestampMonotonic="
-            if line.startswith(field):
-                field_len = len(field)
-                line = line[field_len:]
-                exec_main_start_timestamp_monotonic = float(line) / 100000
-
-            field = "ConditionResult="
-            if line.startswith(field):
-                field_len = len(field)
-                line = line[field_len:]
-                condition_result = line != "no"
-
-        if active_enter_timestamp_monotonic and inactive_exit_timestamp_monotonic:
-            time_to_activate = (
-                active_enter_timestamp_monotonic - inactive_exit_timestamp_monotonic
-            )
-        elif exec_main_exit_timestamp_monotonic and exec_main_start_timestamp_monotonic:
-            time_to_activate = (
-                exec_main_exit_timestamp_monotonic - exec_main_start_timestamp_monotonic
-            )
+        afters = frozenset(properties["Afters"].split())
+        active_enter_timestamp_monotonic = convert_systemctl_monotonic(
+            properties["ActiveEnterTimestampMonotonic"]
+        )
+        inactive_exit_timestamp_monotonic = convert_systemctl_monotonic(
+            properties["InactiveExitTimestampMonotonic"]
+        )
+        exec_main_start_timestamp_monotonic = convert_systemctl_monotonic(
+            properties["ExecMainStartTimestampMonotonic"]
+        )
+        exec_main_exit_timestamp_monotonic = convert_systemctl_monotonic(
+            properties["ExecMainExitTimestampMonotonic"]
+        )
+        condition_result = convert_systemctl_bool(properties["ConditionResult"])
 
         return cls(
             name=service_name,
@@ -100,7 +152,6 @@ class Service:
             inactive_exit_timestamp_monotonic=inactive_exit_timestamp_monotonic,
             exec_main_start_timestamp_monotonic=exec_main_start_timestamp_monotonic,
             exec_main_exit_timestamp_monotonic=exec_main_exit_timestamp_monotonic,
-            time_to_activate=time_to_activate,
             condition_result=condition_result,
         )
 
