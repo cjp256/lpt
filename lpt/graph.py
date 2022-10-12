@@ -19,7 +19,7 @@ def convert_systemctl_timestamp_opt(timestamp: str) -> Optional[datetime.datetim
 
 
 def convert_systemctl_monotonic(timestamp: str) -> float:
-    return float(timestamp) / 100000
+    return float(timestamp) / 10000
 
 
 def convert_systemctl_bool(value: str) -> bool:
