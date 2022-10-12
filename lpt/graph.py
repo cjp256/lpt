@@ -49,7 +49,7 @@ def query_systemctl_show(
     for line in lines:
         line = line.strip()
         try:
-            key, value = line.split("#", 1)
+            key, value = line.split("=", 1)
         except ValueError:
             logger.debug("failed to parse: %r", line)
             continue
