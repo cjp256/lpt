@@ -128,6 +128,12 @@ class Service:
 
         raise ValueError("never activated")
 
+    def calculate_relative_time_of_activation(self, systemd: Systemd) -> float:
+        return (
+            self.active_enter_timestamp_monotonic
+            - systemd.userspace_timestamp_monotonic
+        )
+
     @classmethod
     def query(cls, service_name: str) -> "Service":
         exec_main_start_timestamp_monotonic: Optional[float] = None
@@ -219,10 +225,7 @@ def generate_dependency_digraph(
         if service.time_to_activate:
             label += f"+{service.time_to_activate:.02f}s "
 
-        service_start = (
-            service.active_enter_timestamp_monotonic
-            - systemd.userspace_timestamp_monotonic
-        )
+        service_start = service.calculate_relative_time_of_activation(systemd)
         label += f"@{service_start:.02f}s)"
         return label
 
