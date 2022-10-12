@@ -223,7 +223,9 @@ def generate_dependency_digraph(
             service.active_enter_timestamp_monotonic
             - systemd.userspace_timestamp_monotonic
         )
-        label += f" @{service_start}s"
+        label += f" @{service_start:.02f}s"
+
+        print(service, systemd)
 
         return label
 
