@@ -126,10 +126,7 @@ class Service:
                 - self.exec_main_start_timestamp_monotonic
             )
 
-        import pdb
-
-        pdb.set_trace()
-        return -1
+        raise ValueError("never activated")
 
     @classmethod
     def query(cls, service_name: str) -> "Service":
@@ -145,7 +142,7 @@ class Service:
         inactive_exit_timestamp_monotonic = convert_systemctl_monotonic(
             properties["InactiveExitTimestampMonotonic"]
         )
-        
+
         timestamp = properties.get("ExecMainStartTimestampMonotonic")
         if timestamp:
             exec_main_start_timestamp_monotonic = convert_systemctl_monotonic(timestamp)
