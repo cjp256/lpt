@@ -16,5 +16,5 @@ sync: tests
 
 .PHONY: force-sync
 force-sync:
-	git commit -a -m sync
+	git commit -a -m sync || true
 	git push origin HEAD:main
