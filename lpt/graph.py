@@ -48,8 +48,12 @@ def query_systemctl_show(
     lines = proc.stdout.strip().splitlines()
     for line in lines:
         line = line.strip()
-        key, value = line.split("#", 1)
-        assert key and value
+        try:
+            key, value = line.split("#", 1)
+        except ValueError:
+            logger.debug("failed to parse: %r", line)
+            continue
+
         properties[key] = value
 
     return properties
