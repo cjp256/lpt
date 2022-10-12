@@ -92,7 +92,7 @@ class Systemd:
 @dataclasses.dataclass(frozen=True, eq=True)
 class Service:
     name: str
-    afters: FrozenSet[str]
+    after: FrozenSet[str]
     condition_result: Optional[bool]
     active_enter_timestamp_monotonic: float
     inactive_exit_timestamp_monotonic: float
@@ -134,7 +134,7 @@ class Service:
     def query(cls, service_name: str) -> "Service":
         properties = query_systemctl_show(service_name)
 
-        afters = frozenset(properties["Afters"].split())
+        after = frozenset(properties["after"].split())
         active_enter_timestamp_monotonic = convert_systemctl_monotonic(
             properties["ActiveEnterTimestampMonotonic"]
         )
@@ -151,7 +151,7 @@ class Service:
 
         return cls(
             name=service_name,
-            afters=afters,
+            after=after,
             active_enter_timestamp_monotonic=active_enter_timestamp_monotonic,
             inactive_exit_timestamp_monotonic=inactive_exit_timestamp_monotonic,
             exec_main_start_timestamp_monotonic=exec_main_start_timestamp_monotonic,
@@ -181,7 +181,7 @@ def walk_dependencies(
             return
 
         service_cache[service_name] = service
-        for dep_name in service.afters:
+        for dep_name in service.after:
             if dep_name in service_cache:
                 service_dep = service_cache[dep_name]
             else:
