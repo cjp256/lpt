@@ -212,10 +212,18 @@ def generate_dependency_digraph(
     name: str,
     dependencies: Set[Tuple[Service, Service]],
 ) -> str:
+    systemd = Systemd.query()
+
     def _label_svc(service: Service) -> str:
         label = service.name
         if service.time_to_activate:
-            label += f" +{service.time_to_activate * 100:.02f}ms"
+            label += f" +{service.time_to_activate:.02f}s"
+
+        service_start = (
+            service.active_enter_timestamp_monotonic
+            - systemd.userspace_timestamp_monotonic
+        )
+        label += f" @{service_start}s"
 
         return label
 
