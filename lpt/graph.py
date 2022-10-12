@@ -134,7 +134,7 @@ class Service:
     def query(cls, service_name: str) -> "Service":
         properties = query_systemctl_show(service_name)
 
-        after = frozenset(properties["after"].split())
+        after = frozenset(properties["After"].split())
         active_enter_timestamp_monotonic = convert_systemctl_monotonic(
             properties["ActiveEnterTimestampMonotonic"]
         )
