@@ -97,8 +97,8 @@ class Service:
     condition_result: Optional[bool]
     active_enter_timestamp_monotonic: float
     inactive_exit_timestamp_monotonic: float
-    exec_main_start_timestamp_monotonic: float
-    exec_main_exit_timestamp_monotonic: float
+    exec_main_start_timestamp_monotonic: Optional[float]
+    exec_main_exit_timestamp_monotonic: Optional[float]
 
     def is_valid(self) -> bool:
         return bool(
@@ -133,6 +133,9 @@ class Service:
 
     @classmethod
     def query(cls, service_name: str) -> "Service":
+        exec_main_start_timestamp_monotonic: Optional[float] = None
+        exec_main_exit_timestamp_monotonic: Optional[float] = None
+
         properties = query_systemctl_show(service_name)
 
         after = frozenset(properties["After"].split())
@@ -142,12 +145,15 @@ class Service:
         inactive_exit_timestamp_monotonic = convert_systemctl_monotonic(
             properties["InactiveExitTimestampMonotonic"]
         )
-        exec_main_start_timestamp_monotonic = convert_systemctl_monotonic(
-            properties["ExecMainStartTimestampMonotonic"]
-        )
-        exec_main_exit_timestamp_monotonic = convert_systemctl_monotonic(
-            properties["ExecMainExitTimestampMonotonic"]
-        )
+        
+        timestamp = properties.get("ExecMainStartTimestampMonotonic")
+        if timestamp:
+            exec_main_start_timestamp_monotonic = convert_systemctl_monotonic(timestamp)
+
+        timestamp = properties.get("ExecMainExitTimestampMonotonic")
+        if timestamp:
+            exec_main_exit_timestamp_monotonic = convert_systemctl_monotonic(timestamp)
+
         condition_result = convert_systemctl_bool(properties["ConditionResult"])
 
         return cls(
