@@ -171,6 +171,7 @@ def main():
     graph_parser.add_argument(
         "--filter-service",
         help="Filter services by name",
+        default=[],
         action="extend",
         nargs="+",
     )
