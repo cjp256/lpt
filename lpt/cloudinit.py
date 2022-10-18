@@ -220,9 +220,18 @@ class CloudInit:
     def get_frames(self) -> List[CloudInitFrame]:
         stack: deque[CloudInitEntry] = deque()
         frames: List[CloudInitFrame] = []
+        last_stage = "init-local"
         for entry in self.entries:
+            for stage in [
+                "init-local",
+                "init-network",
+                "modules-config",
+                "modules-final",
+            ]:
+                if entry.stage and entry.stage.startswith(stage):
+                    last_stage = stage
+
             if entry.event_type == "start":
-                print("start of frame:", entry)
                 stack.append(entry)
             if entry.event_type == "finish":
                 try:
@@ -231,11 +240,15 @@ class CloudInit:
                     logger.debug("Ignoring finish event without start: %r", entry)
                     continue
 
-                print("finish of frame:", entry, start)
                 assert start.event_type == "start"
                 assert start.stage == entry.stage
                 assert entry.result
                 assert entry.stage
+
+                stage = entry.stage
+                if stage.startswith("azure-ds"):
+                    stage = "/".join([last_stage, stage])
+
                 frame = CloudInitFrame(
                     source="cloudinit",
                     label="CLOUDINIT_FRAME",
@@ -251,7 +264,6 @@ class CloudInit:
                     result=entry.result,
                 )
                 frames.append(frame)
-                print("frame: ", frame)
         return frames
 
     def get_events_of_interest(  # pylint:disable=too-many-branches
