@@ -112,6 +112,9 @@ class SystemdService(Service):
     def query(cls, service_name: str) -> "SystemdService":
         exec_main_start_timestamp_monotonic: Optional[float] = None
         exec_main_exit_timestamp_monotonic: Optional[float] = None
+        time_to_activate = -1.0
+        timestamp_monotonic_starting = -1.0
+        timestamp_monotonic_started = -1.0
 
         properties = query_systemctl_show(service_name)
 
@@ -147,9 +150,7 @@ class SystemdService(Service):
             timestamp_monotonic_started = exec_main_exit_timestamp_monotonic
         elif inactive_exit_timestamp_monotonic:
             # Service may have failed to start.
-            time_to_activate = -1.0
             timestamp_monotonic_starting = inactive_exit_timestamp_monotonic
-            timestamp_monotonic_started = -1.0
 
         return cls(
             name=service_name,
