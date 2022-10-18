@@ -149,13 +149,16 @@ class CloudInit:
     reference_monotonic: Optional[datetime.datetime]
 
     @classmethod
-    def parse(cls, path: Path = Path("/var/log/cloud-init.log")) -> List["CloudInit"]:
+    def parse(  # pylint: disable=too-many-branches
+        cls, path: Path = Path("/var/log/cloud-init.log")
+    ) -> List["CloudInit"]:
         """Parse cloud-init log and split by boot."""
         cloudinits = []
         boot_entries: List[CloudInitEntry] = []
         boot_logs: List[str] = []
         reference_monotonic = None
         last_timestamp = None
+        last_stage = "init-local"
 
         logs = path.read_text(encoding="utf-8")
         for line in logs.splitlines():
@@ -165,6 +168,19 @@ class CloudInit:
                 continue
             finally:
                 boot_logs.append(line)
+
+            for stage in [
+                "init-local",
+                "init-network",
+                "modules-config",
+                "modules-final",
+            ]:
+                if entry.stage and entry.stage.startswith(stage):
+                    last_stage = stage
+
+            # Fixup azure-ds stage.
+            if entry.stage and entry.stage.startswith("azure-ds"):
+                entry.stage = "/".join([last_stage, entry.stage])
 
             # Due to low resolution, add a microsecond to timestamp if it
             # matches the previous record.
@@ -195,6 +211,7 @@ class CloudInit:
                 cloudinits.append(boot_cloudinit)
                 boot_entries = [entry]
                 boot_logs = []
+                last_stage = "init-local"
             else:
                 boot_entries.append(entry)
 
@@ -220,17 +237,7 @@ class CloudInit:
     def get_frames(self) -> List[CloudInitFrame]:
         stack: deque[CloudInitEntry] = deque()
         frames: List[CloudInitFrame] = []
-        last_stage = "init-local"
         for entry in self.entries:
-            for stage in [
-                "init-local",
-                "init-network",
-                "modules-config",
-                "modules-final",
-            ]:
-                if entry.stage and entry.stage.startswith(stage):
-                    last_stage = stage
-
             if entry.event_type == "start":
                 stack.append(entry)
             if entry.event_type == "finish":
@@ -245,17 +252,13 @@ class CloudInit:
                 assert entry.result
                 assert entry.stage
 
-                stage = entry.stage
-                if stage.startswith("azure-ds"):
-                    stage = "/".join([last_stage, stage])
-
                 frame = CloudInitFrame(
                     source="cloudinit",
                     label="CLOUDINIT_FRAME",
                     timestamp_realtime=start.timestamp_realtime,
                     timestamp_monotonic=start.timestamp_monotonic,
                     duration=entry.timestamp_monotonic - start.timestamp_monotonic,
-                    stage=stage,
+                    stage=entry.stage,
                     module=entry.module,
                     timestamp_realtime_finish=entry.timestamp_realtime,
                     timestamp_monotonic_finish=entry.timestamp_monotonic,
