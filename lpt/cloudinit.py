@@ -225,9 +225,12 @@ class CloudInit:
                 print("start of frame:", entry)
                 stack.append(entry)
             if entry.event_type == "finish":
-                if not stack:
+                try:
+                    start = stack.pop()
+                except IndexError:
                     logger.debug("Ignoring finish event without start: %r", entry)
-                start = stack.pop()
+                    continue
+
                 print("finish of frame:", entry, start)
                 assert start.event_type == "start"
                 assert start.stage == entry.stage
