@@ -1,6 +1,7 @@
 import argparse
 import json
 import logging
+import re
 import sys
 from pathlib import Path
 from typing import List
@@ -66,6 +67,10 @@ def main_analyze(args) -> None:
     for journal in journals:
         events += journal.get_events_of_interest()
 
+    event_types = args.event_types
+    if event_types:
+        events = [e for e in events if any(re.match(r, e.label) for r in event_types)]
+
     print_analysis(events)
 
 
@@ -129,6 +134,13 @@ def main():
         default="/var/log/cloud-init.log",
         help="cloudinit logs path, use 'local' to fetch directly",
         type=Path,
+    )
+    analyze_parser.add_argument(
+        "--event-types",
+        default=[],
+        help="event types to analyze (supports regex)",
+        action="extend",
+        nargs="+",
     )
     analyze_parser.set_defaults(func=main_analyze_cloudinit)
 
