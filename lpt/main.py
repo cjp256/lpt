@@ -1,7 +1,6 @@
 import argparse
 import json
 import logging
-import re
 import sys
 from pathlib import Path
 from typing import List
@@ -28,7 +27,7 @@ def _init_logger(log_level: int):
 def print_analysis(events: List[Event], event_types: List[str]) -> None:
     events = sorted(events, key=lambda x: x.timestamp_realtime)
     if event_types:
-        events = [e for e in events if any(re.match(r, e.label) for r in event_types)]
+        events = [e for e in events if e.label in event_types]
 
     event_dicts = [e.as_dict() for e in events]
     warnings = [e for e in event_dicts if e["label"].startswith("WARNING")]
