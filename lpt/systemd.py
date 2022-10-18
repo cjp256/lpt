@@ -150,11 +150,6 @@ class SystemdService(Service):
             time_to_activate = -1.0
             timestamp_monotonic_starting = inactive_exit_timestamp_monotonic
             timestamp_monotonic_started = -1.0
-        else:
-            import pdb
-
-            pdb.set_trace()
-            raise ValueError("unable to determine time to activate")
 
         return cls(
             name=service_name,
