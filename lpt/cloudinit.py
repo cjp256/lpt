@@ -38,12 +38,13 @@ class CloudInitEvent(Event):
     log_line: str
     log_level: str
     message: str
-    module: str
     result: Optional[str]
     timestamp_realtime: datetime.datetime
     timestamp_monotonic: float
     event_type: str
     stage: Optional[str]
+    module: str
+    python_module: str
 
 
 @dataclasses.dataclass
@@ -51,7 +52,8 @@ class CloudInitEntry:
     log_line: str
     log_level: str
     message: str
-    module: str
+    module: Optional[str]
+    python_module: Optional[str]
     result: Optional[str]
     timestamp_realtime: datetime.datetime
     timestamp_monotonic: float
@@ -66,7 +68,7 @@ class CloudInitEntry:
         if line_match is None:
             raise ValueError(f"unable to parse: {log_line}")
 
-        ts, module, log_level, message = line_match.groups()
+        ts, python_module, log_level, message = line_match.groups()
         timestamp_realtime = cls.convert_timestamp_to_datetime(ts)
 
         if message.startswith("start:"):
@@ -77,12 +79,13 @@ class CloudInitEntry:
         event_type = "log"
         result = None
         stage = None
+        module = None
 
         # Finish event
         if message.startswith("finish:"):
             split = message.split(": ")
             event_type = split[0]
-            stage = split[1]
+            module = split[1]
             result = split[2]
             message = ": ".join(split[3:])
 
@@ -90,8 +93,19 @@ class CloudInitEntry:
         if message.startswith("start:"):
             split = message.split(": ")
             event_type = split[0]
-            stage = split[1]
+            module = split[1]
             message = ": ".join(split[2:])
+
+        if module and any(
+            module.startswith(s)
+            for s in [
+                "init-local",
+                "init-network",
+                "modules-config",
+                "modules-final",
+            ]
+        ):
+            stage, module = module.split("/", 1)
 
         entry = cls(
             log_line=log_line,
@@ -99,6 +113,7 @@ class CloudInitEntry:
             log_level=log_level,
             message=message,
             module=module,
+            python_module=python_module,
             result=result,
             stage=stage,
             timestamp_realtime=timestamp_realtime,
@@ -248,9 +263,10 @@ class CloudInit:
                     continue
 
                 assert start.event_type == "start"
-                assert start.stage == entry.stage
+                assert entry.module
                 assert entry.result
                 assert entry.stage
+                assert start.stage == entry.stage
 
                 frame = CloudInitFrame(
                     source="cloudinit",
