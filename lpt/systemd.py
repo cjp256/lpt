@@ -201,6 +201,7 @@ def walk_systemd_service_dependencies(
     seen = set()
     service_cache: Dict[str, SystemdService] = {}
     systemd = Systemd.query()
+    userspace_timestamp_monotonic = systemd.userspace_timestamp_monotonic
 
     def _walk_dependencies(service_name: str) -> None:
         if service_name in seen:
@@ -209,7 +210,7 @@ def walk_systemd_service_dependencies(
 
         service = SystemdService.query(
             service_name,
-            userspace_timestamp_monotonic=systemd.userspace_timestamp_monotonic,
+            userspace_timestamp_monotonic=userspace_timestamp_monotonic,
         )
         if service is None:
             return
@@ -221,7 +222,7 @@ def walk_systemd_service_dependencies(
             else:
                 service_dep = SystemdService.query(
                     dep_name,
-                    userspace_timestamp_monotonic=systemd.userspace_timestamp_monotonic,
+                    userspace_timestamp_monotonic=userspace_timestamp_monotonic,
                 )
                 service_cache[dep_name] = service_dep
 
