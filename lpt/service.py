@@ -8,17 +8,25 @@ logger = logging.getLogger("lpt.systemd")
 class Service:
     name: str
     time_to_activate: float
-    timestamp_monotonic_starting: float
-    timestamp_monotonic_started: float
+    timestamp_monotonic_start: float
+    timestamp_monotonic_finish: float
+    failed: bool
 
-    def get_label(self, userspace_timestamp_monotonic: float) -> str:
+    def get_label(self) -> str:
         """Label service using times relative to start of systemd."""
-        label = f"{self.name} ("
-        if self.time_to_activate:
-            label += f"+{self.time_to_activate:.03f}s "
+        label = self.name
+        notes = []
 
-        started = self.timestamp_monotonic_started - userspace_timestamp_monotonic
-        label += f"@{started:.03f}s)"
+        if self.time_to_activate:
+            notes.append(f"+{self.time_to_activate:.03f}s")
+
+        notes.append(f"@{self.timestamp_monotonic_finish:.03f}s")
+        if self.failed:
+            notes.append("*FAILED*")
+
+        if notes:
+            label += " (" + " ".join(notes) + ")"
+
         return label
 
     def as_dict(self) -> dict:

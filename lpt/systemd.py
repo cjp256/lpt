@@ -98,6 +98,7 @@ class SystemdService(Service):
     after: FrozenSet[str]
     condition_result: Optional[bool]
     active_enter_timestamp_monotonic: float
+    inactive_enter_timestamp_monotonic: float
     inactive_exit_timestamp_monotonic: float
     exec_main_start_timestamp_monotonic: Optional[float]
     exec_main_exit_timestamp_monotonic: Optional[float]
@@ -109,12 +110,15 @@ class SystemdService(Service):
         )
 
     @classmethod
-    def query(cls, service_name: str) -> "SystemdService":
+    def query(  # pylint: disable=too-many-locals
+        cls, service_name: str, *, userspace_timestamp_monotonic: float
+    ) -> "SystemdService":
         exec_main_start_timestamp_monotonic: Optional[float] = None
         exec_main_exit_timestamp_monotonic: Optional[float] = None
-        time_to_activate = -1.0
-        timestamp_monotonic_starting = -1.0
-        timestamp_monotonic_started = -1.0
+        time_to_activate = 0.0
+        timestamp_monotonic_start = 0.0
+        timestamp_monotonic_finish = 0.0
+        failed = False
 
         properties = query_systemctl_show(service_name)
 
@@ -124,6 +128,9 @@ class SystemdService(Service):
         )
         inactive_exit_timestamp_monotonic = convert_systemctl_monotonic(
             properties["InactiveExitTimestampMonotonic"]
+        )
+        inactive_enter_timestamp_monotonic = convert_systemctl_monotonic(
+            properties["InactiveEnterTimestampMonotonic"]
         )
 
         timestamp = properties.get("ExecMainStartTimestampMonotonic")
@@ -140,32 +147,47 @@ class SystemdService(Service):
             time_to_activate = (
                 active_enter_timestamp_monotonic - inactive_exit_timestamp_monotonic
             )
-            timestamp_monotonic_starting = inactive_exit_timestamp_monotonic
-            timestamp_monotonic_started = active_enter_timestamp_monotonic
+            timestamp_monotonic_start = (
+                inactive_exit_timestamp_monotonic - userspace_timestamp_monotonic
+            )
+            timestamp_monotonic_finish = (
+                active_enter_timestamp_monotonic - userspace_timestamp_monotonic
+            )
         elif exec_main_exit_timestamp_monotonic and exec_main_start_timestamp_monotonic:
             time_to_activate = (
                 exec_main_exit_timestamp_monotonic - exec_main_start_timestamp_monotonic
             )
-            timestamp_monotonic_starting = exec_main_start_timestamp_monotonic
-            timestamp_monotonic_started = exec_main_exit_timestamp_monotonic
-        elif inactive_exit_timestamp_monotonic:
+            timestamp_monotonic_start = (
+                exec_main_start_timestamp_monotonic - userspace_timestamp_monotonic
+            )
+            timestamp_monotonic_finish = (
+                exec_main_exit_timestamp_monotonic - userspace_timestamp_monotonic
+            )
+        elif inactive_exit_timestamp_monotonic and inactive_enter_timestamp_monotonic:
             # Service may have failed to start.
-            timestamp_monotonic_starting = inactive_exit_timestamp_monotonic
+            time_to_activate = timestamp_monotonic_finish - timestamp_monotonic_start
+            timestamp_monotonic_start = (
+                inactive_exit_timestamp_monotonic - userspace_timestamp_monotonic
+            )
+            timestamp_monotonic_finish = (
+                inactive_enter_timestamp_monotonic - userspace_timestamp_monotonic
+            )
+            failed = True
 
-        service = cls(
+        return cls(
             name=service_name,
+            time_to_activate=time_to_activate,
+            timestamp_monotonic_start=timestamp_monotonic_start,
+            timestamp_monotonic_finish=timestamp_monotonic_finish,
+            failed=failed,
             after=after,
             active_enter_timestamp_monotonic=active_enter_timestamp_monotonic,
+            inactive_enter_timestamp_monotonic=inactive_enter_timestamp_monotonic,
             inactive_exit_timestamp_monotonic=inactive_exit_timestamp_monotonic,
             exec_main_start_timestamp_monotonic=exec_main_start_timestamp_monotonic,
             exec_main_exit_timestamp_monotonic=exec_main_exit_timestamp_monotonic,
             condition_result=condition_result,
-            time_to_activate=time_to_activate,
-            timestamp_monotonic_starting=timestamp_monotonic_starting,
-            timestamp_monotonic_started=timestamp_monotonic_started,
         )
-        print(service)
-        return service
 
 
 def walk_systemd_service_dependencies(
@@ -178,13 +200,17 @@ def walk_systemd_service_dependencies(
     deps = set()
     seen = set()
     service_cache: Dict[str, SystemdService] = {}
+    systemd = Systemd.query()
 
     def _walk_dependencies(service_name: str) -> None:
         if service_name in seen:
             return
         seen.add(service_name)
 
-        service = SystemdService.query(service_name)
+        service = SystemdService.query(
+            service_name,
+            userspace_timestamp_monotonic=systemd.userspace_timestamp_monotonic,
+        )
         if service is None:
             return
 
@@ -193,7 +219,10 @@ def walk_systemd_service_dependencies(
             if dep_name in service_cache:
                 service_dep = service_cache[dep_name]
             else:
-                service_dep = SystemdService.query(dep_name)
+                service_dep = SystemdService.query(
+                    dep_name,
+                    userspace_timestamp_monotonic=systemd.userspace_timestamp_monotonic,
+                )
                 service_cache[dep_name] = service_dep
 
             if dep_name in filter_services:

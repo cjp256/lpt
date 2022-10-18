@@ -5,7 +5,7 @@ import logging
 logger = logging.getLogger("lpt.event")
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(eq=True)
 class Event:
     label: str
     timestamp_realtime: datetime.datetime

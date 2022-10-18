@@ -107,9 +107,17 @@ def main_graph(args) -> None:
         filter_services=sorted(args.filter_service),
         filter_conditional_result_no=args.filter_conditional_result_no,
     )
+    cloudinits = analyze_cloudinit(args.cloudinit_log_path)
+    if cloudinits:
+        cloudinit = cloudinits[-1]
+        cloud_init_services = [f.as_service() for f in cloudinit.get_frames()]
+    else:
+        cloud_init_services = []
+
     graph = generate_dependency_digraph(
         args.service,
-        dependencies=dependencies,
+        systemd_service_dependencies=dependencies,
+        cloud_init_services=cloud_init_services,
     )
     print(graph)
 
@@ -190,6 +198,12 @@ def main():
     analyze_parser.set_defaults(func=main_analyze)
 
     graph_parser = subparsers.add_parser("graph")
+    graph_parser.add_argument(
+        "--cloudinit-log-path",
+        default=Path("/var/log/cloud-init.log"),
+        help="cloudinit logs path, use 'local' to fetch directly",
+        type=Path,
+    )
     graph_parser.add_argument(
         "--filter-conditional-result-no",
         help="Filter services that are not started due to conditional",

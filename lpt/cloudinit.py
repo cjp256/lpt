@@ -9,9 +9,15 @@ from typing import List, Optional, Union
 import dateutil.parser
 
 from .event import Event
+from .service import Service
 from .time import calculate_reference_timestamp
 
 logger = logging.getLogger("lpt.cloudinit")
+
+
+@dataclasses.dataclass(frozen=True, eq=True)
+class CloudInitService(Service):
+    stage: str
 
 
 @dataclasses.dataclass
@@ -31,6 +37,16 @@ class CloudInitFrame(Event):
         obj["timestamp_realtime_start"] = str(self.timestamp_realtime)
         obj["timestamp_realtime_finish"] = str(self.timestamp_realtime)
         return obj
+
+    def as_service(self) -> CloudInitService:
+        return CloudInitService(
+            name=self.module,
+            stage=self.stage,
+            time_to_activate=self.duration,
+            failed=self.result != "SUCCESS",
+            timestamp_monotonic_start=self.timestamp_monotonic_start,
+            timestamp_monotonic_finish=self.timestamp_monotonic_finish,
+        )
 
 
 @dataclasses.dataclass
