@@ -3,12 +3,13 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import List
+from typing import List, Set, Tuple
 
 from .cloudinit import CloudInit
 from .event import Event
-from .graph import generate_dependency_digraph, walk_dependencies
+from .graph import generate_dependency_digraph
 from .journal import Journal
+from .systemd import Service, walk_systemd_service_dependencies
 
 logger = logging.getLogger("lpt")
 
@@ -100,7 +101,8 @@ def main_analyze_journal(args) -> None:
 
 
 def main_graph(args) -> None:
-    dependencies = walk_dependencies(
+    dependencies: Set[Tuple[Service, Service]] = set()
+    dependencies |= walk_systemd_service_dependencies(
         args.service,
         filter_services=sorted(args.filter_service),
         filter_conditional_result_no=args.filter_conditional_result_no,

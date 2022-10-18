@@ -2,7 +2,9 @@ import dataclasses
 import datetime
 import logging
 import subprocess
-from typing import Dict, FrozenSet, Optional
+from typing import Dict, FrozenSet, List, Optional, Set, Tuple
+
+from .service import Service
 
 logger = logging.getLogger("lpt.systemd")
 
@@ -91,7 +93,7 @@ class Systemd:
 
 
 @dataclasses.dataclass(frozen=True, eq=True)
-class Service:
+class SystemdService(Service):
     name: str
     after: FrozenSet[str]
     condition_result: Optional[bool]
@@ -106,35 +108,8 @@ class Service:
             or self.active_enter_timestamp_monotonic
         )
 
-    @property
-    def time_to_activate(self) -> float:
-        if (
-            self.active_enter_timestamp_monotonic
-            and self.inactive_exit_timestamp_monotonic
-        ):
-            return (
-                self.active_enter_timestamp_monotonic
-                - self.inactive_exit_timestamp_monotonic
-            )
-
-        if (
-            self.exec_main_exit_timestamp_monotonic
-            and self.exec_main_start_timestamp_monotonic
-        ):
-            return (
-                self.exec_main_exit_timestamp_monotonic
-                - self.exec_main_start_timestamp_monotonic
-            )
-
-        raise ValueError("never activated")
-
-    def calculate_relative_time_of_activation(
-        self, userspace_timestamp_monotonic: float
-    ) -> float:
-        return self.active_enter_timestamp_monotonic - userspace_timestamp_monotonic
-
     @classmethod
-    def query(cls, service_name: str) -> "Service":
+    def query(cls, service_name: str) -> "SystemdService":
         exec_main_start_timestamp_monotonic: Optional[float] = None
         exec_main_exit_timestamp_monotonic: Optional[float] = None
 
@@ -158,6 +133,29 @@ class Service:
 
         condition_result = convert_systemctl_bool(properties["ConditionResult"])
 
+        if active_enter_timestamp_monotonic and inactive_exit_timestamp_monotonic:
+            time_to_activate = (
+                active_enter_timestamp_monotonic - inactive_exit_timestamp_monotonic
+            )
+            timestamp_monotonic_starting = inactive_exit_timestamp_monotonic
+            timestamp_monotonic_started = active_enter_timestamp_monotonic
+        elif exec_main_exit_timestamp_monotonic and exec_main_start_timestamp_monotonic:
+            time_to_activate = (
+                exec_main_exit_timestamp_monotonic - exec_main_start_timestamp_monotonic
+            )
+            timestamp_monotonic_starting = exec_main_start_timestamp_monotonic
+            timestamp_monotonic_started = exec_main_exit_timestamp_monotonic
+        elif inactive_exit_timestamp_monotonic:
+            # Service may have failed to start.
+            time_to_activate = -1.0
+            timestamp_monotonic_starting = inactive_exit_timestamp_monotonic
+            timestamp_monotonic_started = -1.0
+        else:
+            import pdb
+
+            pdb.set_trace()
+            raise ValueError("unable to determine time to activate")
+
         return cls(
             name=service_name,
             after=after,
@@ -166,4 +164,51 @@ class Service:
             exec_main_start_timestamp_monotonic=exec_main_start_timestamp_monotonic,
             exec_main_exit_timestamp_monotonic=exec_main_exit_timestamp_monotonic,
             condition_result=condition_result,
+            time_to_activate=time_to_activate,
+            timestamp_monotonic_starting=timestamp_monotonic_starting,
+            timestamp_monotonic_started=timestamp_monotonic_started,
         )
+
+
+def walk_systemd_service_dependencies(
+    service_name: str,
+    *,
+    filter_services: List[str],
+    filter_conditional_result_no: bool = False,
+    filter_inactive: bool = True,
+) -> Set[Tuple[SystemdService, SystemdService]]:
+    deps = set()
+    seen = set()
+    service_cache: Dict[str, SystemdService] = {}
+
+    def _walk_dependencies(service_name: str) -> None:
+        if service_name in seen:
+            return
+        seen.add(service_name)
+
+        service = SystemdService.query(service_name)
+        if service is None:
+            return
+
+        service_cache[service_name] = service
+        for dep_name in service.after:
+            if dep_name in service_cache:
+                service_dep = service_cache[dep_name]
+            else:
+                service_dep = SystemdService.query(dep_name)
+                service_cache[dep_name] = service_dep
+
+            if dep_name in filter_services:
+                continue
+
+            if filter_conditional_result_no and not service_dep.condition_result:
+                continue
+
+            if filter_inactive and not service_dep.active_enter_timestamp_monotonic:
+                continue
+
+            deps.add((service, service_dep))
+            _walk_dependencies(dep_name)
+
+    _walk_dependencies(service_name)
+    return deps
