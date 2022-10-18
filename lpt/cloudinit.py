@@ -255,7 +255,7 @@ class CloudInit:
                     timestamp_realtime=start.timestamp_realtime,
                     timestamp_monotonic=start.timestamp_monotonic,
                     duration=entry.timestamp_monotonic - start.timestamp_monotonic,
-                    stage=entry.stage,
+                    stage=stage,
                     module=entry.module,
                     timestamp_realtime_finish=entry.timestamp_realtime,
                     timestamp_monotonic_finish=entry.timestamp_monotonic,
