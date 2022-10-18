@@ -193,9 +193,8 @@ class CloudInit:
                 if entry.stage and entry.stage.startswith(stage):
                     last_stage = stage
 
-            # Fixup azure-ds stage.
-            if entry.stage and entry.stage.startswith("azure-ds"):
-                entry.stage = "/".join([last_stage, entry.stage])
+            if not entry.stage:
+                entry.stage = last_stage
 
             # Due to low resolution, add a microsecond to timestamp if it
             # matches the previous record.
