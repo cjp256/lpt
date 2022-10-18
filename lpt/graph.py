@@ -21,6 +21,9 @@ def generate_dependency_digraph(
         edges.add(f'  "{label_s1}"->"{label_s2}" [color="green"];')
 
     # Add cloud-init frames.
+    cloud_init_services = sorted(
+        cloud_init_services, key=lambda x: x.timestamp_monotonic_start
+    )
     for s1, _ in sorted(systemd_service_dependencies, key=lambda x: x[0].name):
         mappings = {
             "cloud-init-local.service": "init-local",
@@ -33,7 +36,7 @@ def generate_dependency_digraph(
             continue
 
         label_s1 = s1.get_label()
-        for service_frame in list(cloud_init_services):
+        for service_frame in cloud_init_services.copy():
             if service_frame.stage != stage:
                 continue
 
