@@ -25,8 +25,10 @@ def _init_logger(log_level: int):
     logger.addHandler(handler)
 
 
-def print_analysis(events: List[Event]) -> None:
+def print_analysis(events: List[Event], event_types: List[str]) -> None:
     events = sorted(events, key=lambda x: x.timestamp_realtime)
+    if event_types:
+        events = [e for e in events if any(re.match(r, e.label) for r in event_types)]
     event_dicts = [e.as_dict() for e in events]
     warnings = [e for e in event_dicts if e["label"].startswith("WARNING")]
     errors = [e for e in event_dicts if e["label"].startswith("ERROR")]
@@ -67,11 +69,7 @@ def main_analyze(args) -> None:
     for journal in journals:
         events += journal.get_events_of_interest()
 
-    event_types = args.event_types
-    if event_types:
-        events = [e for e in events if any(re.match(r, e.label) for r in event_types)]
-
-    print_analysis(events)
+    print_analysis(events, args.event_type)
 
 
 def main_analyze_cloudinit(args) -> None:
@@ -84,11 +82,7 @@ def main_analyze_cloudinit(args) -> None:
     for cloudinit in cloudinits:
         events += cloudinit.get_events_of_interest()
 
-    event_types = args.event_types
-    if event_types:
-        events = [e for e in events if any(re.match(r, e.label) for r in event_types)]
-
-    print_analysis(events)
+    print_analysis(events, args.event_type)
 
 
 def main_analyze_journal(args) -> None:
@@ -101,7 +95,7 @@ def main_analyze_journal(args) -> None:
     for journal in journals:
         events += journal.get_events_of_interest()
 
-    print_analysis(events)
+    print_analysis(events, args.event_type)
 
 
 def main_graph(args) -> None:
@@ -140,7 +134,7 @@ def main():
         type=Path,
     )
     analyze_parser.add_argument(
-        "--event-types",
+        "--event-type",
         default=[],
         help="event types to analyze (supports regex)",
         action="extend",
@@ -157,6 +151,13 @@ def main():
         default="/var/log/journal",
         help="journal directory",
         type=Path,
+    )
+    analyze_parser.add_argument(
+        "--event-type",
+        default=[],
+        help="event types to analyze (supports regex)",
+        action="extend",
+        nargs="+",
     )
     analyze_parser.set_defaults(func=main_analyze_journal)
 
@@ -175,6 +176,13 @@ def main():
         default="/var/log/journal",
         help="journal directory",
         type=Path,
+    )
+    analyze_parser.add_argument(
+        "--event-type",
+        default=[],
+        help="event types to analyze (supports regex)",
+        action="extend",
+        nargs="+",
     )
     analyze_parser.set_defaults(func=main_analyze)
 
