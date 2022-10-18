@@ -84,6 +84,10 @@ def main_analyze_cloudinit(args) -> None:
     for cloudinit in cloudinits:
         events += cloudinit.get_events_of_interest()
 
+    event_types = args.event_types
+    if event_types:
+        events = [e for e in events if any(re.match(r, e.label) for r in event_types)]
+
     print_analysis(events)
 
 
