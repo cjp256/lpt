@@ -2,8 +2,9 @@ import dataclasses
 import datetime
 import logging
 import re
+from collections import deque
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import dateutil.parser
 
@@ -11,6 +12,25 @@ from .event import Event
 from .time import calculate_reference_timestamp
 
 logger = logging.getLogger("lpt.cloudinit")
+
+
+@dataclasses.dataclass
+class CloudInitFrame(Event):
+    stage: str
+    module: str
+    timestamp_realtime_finish: datetime.datetime
+    timestamp_realtime_start: datetime.datetime
+    timestamp_monotonic_finish: float
+    timestamp_monotonic_start: float
+    duration: float
+    result: str
+
+    def as_dict(self) -> dict:
+        obj = self.__dict__.copy()
+        obj["timestamp_realtime"] = str(self.timestamp_realtime)
+        obj["timestamp_realtime_start"] = str(self.timestamp_realtime)
+        obj["timestamp_realtime_finish"] = str(self.timestamp_realtime)
+        return obj
 
 
 @dataclasses.dataclass
@@ -197,10 +217,45 @@ class CloudInit:
             and (event_type is None or event_type == e.event_type)
         ]
 
+    def get_frames(self) -> List[CloudInitFrame]:
+        stack: deque[CloudInitEntry] = deque()
+        frames: List[CloudInitFrame] = []
+        for entry in self.entries:
+            if entry.event_type == "start":
+                print("start of frame:", entry)
+                stack.append(entry)
+            if entry.event_type == "finish":
+                assert stack
+                start = stack.pop()
+                print("finish of frame:", entry, start)
+                assert start.event_type == "start"
+                assert start.stage == entry.stage
+                assert entry.result
+                assert entry.stage
+                frame = CloudInitFrame(
+                    source="cloudinit",
+                    label="CLOUDINIT_FRAME",
+                    timestamp_realtime=start.timestamp_realtime,
+                    timestamp_monotonic=start.timestamp_monotonic,
+                    duration=entry.timestamp_monotonic - start.timestamp_monotonic,
+                    stage=entry.stage,
+                    module=entry.module,
+                    timestamp_realtime_finish=entry.timestamp_realtime,
+                    timestamp_monotonic_finish=entry.timestamp_monotonic,
+                    timestamp_realtime_start=start.timestamp_realtime,
+                    timestamp_monotonic_start=start.timestamp_monotonic,
+                    result=entry.result,
+                )
+                frames.append(frame)
+                print("frame: ", frame)
+        return frames
+
     def get_events_of_interest(  # pylint:disable=too-many-branches
         self,
-    ) -> List[CloudInitEvent]:
-        events = []
+    ) -> List[Union[CloudInitEvent, CloudInitFrame]]:
+        events: List[Union[CloudInitEvent, CloudInitFrame]] = []
+
+        events.extend(self.get_frames())
 
         for entry in self.find_entries("running 'init-local'"):
             events.append(entry.as_event("CLOUDINIT_RUNNING_INIT_LOCAL"))
