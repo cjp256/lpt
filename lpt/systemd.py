@@ -152,7 +152,7 @@ class SystemdService(Service):
             # Service may have failed to start.
             timestamp_monotonic_starting = inactive_exit_timestamp_monotonic
 
-        return cls(
+        service = cls(
             name=service_name,
             after=after,
             active_enter_timestamp_monotonic=active_enter_timestamp_monotonic,
@@ -164,6 +164,8 @@ class SystemdService(Service):
             timestamp_monotonic_starting=timestamp_monotonic_starting,
             timestamp_monotonic_started=timestamp_monotonic_started,
         )
+        print(service)
+        return service
 
 
 def walk_systemd_service_dependencies(
