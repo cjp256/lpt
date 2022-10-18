@@ -27,11 +27,12 @@ def _init_logger(log_level: int):
 
 def print_analysis(events: List[Event], event_types: List[str]) -> None:
     events = sorted(events, key=lambda x: x.timestamp_realtime)
-    if event_types:
-        events = [e for e in events if any(re.match(r, e.label) for r in event_types)]
     event_dicts = [e.as_dict() for e in events]
     warnings = [e for e in event_dicts if e["label"].startswith("WARNING")]
     errors = [e for e in event_dicts if e["label"].startswith("ERROR")]
+
+    if event_types:
+        events = [e for e in events if any(re.match(r, e.label) for r in event_types)]
     output = {
         "events": event_dicts,
         "warnings": warnings,
