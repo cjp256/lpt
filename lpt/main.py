@@ -122,6 +122,7 @@ def main_graph(args) -> None:
 
     print("********")
     print(digraph)
+    print("********")
 
 
 def main_help(parser, _):
