@@ -125,7 +125,7 @@ class ServiceGraph:
     def generate_digraph(
         self,
     ) -> str:
-        edges = set()
+        edges = []
 
         unit_dependencies = self.walk_unit_dependencies()
         unit_dependencies = sorted(unit_dependencies, key=lambda x: x[0].unit)
