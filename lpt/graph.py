@@ -122,17 +122,16 @@ class ServiceGraph:
     def as_dict(self) -> dict:
         return self.__dict__.copy()
 
-    def generate_digraph(
+    def generate_digraph(  # pylint: disable=too-many-locals
         self,
     ) -> str:
         edges = set()
-
-        unit_dependencies = self.walk_unit_dependencies()
-        unit_dependencies = sorted(unit_dependencies, key=lambda x: x[0].unit)
         graphed_units = set()
+        unit_dependencies = sorted(
+            self.walk_unit_dependencies(), key=lambda x: x[0].unit
+        )
 
         for s1, s2 in unit_dependencies:
-            logger.debug("ading edge for: %r -> %r", s1.unit, s2.unit)
             graphed_units.add(s1)
             graphed_units.add(s2)
             label_s1 = self.get_unit_label(s1)
@@ -141,7 +140,6 @@ class ServiceGraph:
 
             edge = f'  "{label_s1}"->"{label_s2}" [color="{color}"];'
             edges.add(edge)
-            logger.debug("added edge: %r", edges)
 
         # Add cloud-init frames.
         for service_name, stage in {
@@ -169,11 +167,5 @@ class ServiceGraph:
             *sorted(edges),
             "}",
         ]
-        logger.debug("lines: %r", lines)
         digraph = "\n".join(lines)
-        logger.debug("digraph: %r", digraph)
-
-        import pdb
-        pdb.set_trace()
         return digraph
-
