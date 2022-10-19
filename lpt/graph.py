@@ -70,6 +70,14 @@ class ServiceGraph:
 
         return label
 
+    def walk_frame_dependencies(
+            self
+            ) -> Set[Tuple[CloudInitFrame, CloudInitFrame]]:
+        for frame in self.frames:
+            print(frame)
+
+        return set()
+
     def walk_unit_dependencies(
         self,
     ) -> Set[Tuple[SystemdUnit, SystemdUnit]]:
@@ -129,6 +137,8 @@ class ServiceGraph:
         unit_dependencies = sorted(
             self.walk_unit_dependencies(), key=lambda x: x[0].unit
         )
+        frame_dependencies = self.walk_frame_dependencies()
+        logger.debug("frame dependenices: %r", frame_dependencies)
 
         edges = []
         for s1, s2 in unit_dependencies:
