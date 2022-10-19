@@ -118,6 +118,8 @@ class ServiceGraph:
 
         _walk_dependencies(self.service_name)
 
+        logger.debug("deps: %r", deps)
+
         return deps
 
     def as_dict(self) -> dict:
