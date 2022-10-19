@@ -14,7 +14,7 @@ from .time import calculate_reference_timestamp
 logger = logging.getLogger("lpt.cloudinit")
 
 
-@dataclasses.dataclass(unsafe_hash=True, eq=True)
+@dataclasses.dataclass(eq=True)
 class CloudInitFrame(Event):
     stage: str
     module: str
@@ -26,6 +26,9 @@ class CloudInitFrame(Event):
     result: str
     parent: Optional["CloudInitFrame"]
     children: FrozenSet["CloudInitFrame"]
+
+    def __hash__(self):
+        return id(self)
 
     def get_time_to_complete(self) -> float:
         return self.timestamp_monotonic_finish - self.timestamp_monotonic_start
