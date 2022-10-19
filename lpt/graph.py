@@ -215,7 +215,7 @@ class ServiceGraph:
             lines += [
                 f'  subgraph "{label}" {{',
                 "    style=filled;",
-                "    color=lightgrey;",
+                "    color=lightblue;",
                 "    node [style=filled,color=pink];",
                 f'    label="{label}"',
                 *edges,

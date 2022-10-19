@@ -14,7 +14,7 @@ from .time import calculate_reference_timestamp
 logger = logging.getLogger("lpt.cloudinit")
 
 
-@dataclasses.dataclass(eq=True)
+@dataclasses.dataclass(unsafe_hash=True, eq=True)
 class CloudInitFrame(Event):
     stage: str
     module: str
@@ -42,6 +42,12 @@ class CloudInitFrame(Event):
         obj["timestamp_realtime_start"] = str(self.timestamp_realtime)
         obj["timestamp_realtime_finish"] = str(self.timestamp_realtime)
         return obj
+
+
+# @dataclasses.dataclass(eq=True)
+# class CloudInitFrameUnfrozen(CloudInitFrame):
+#    def as_frozen(self) -> CloudInitFrame:
+#        return CloudInitFrame(**self.__dict__.copy())
 
 
 @dataclasses.dataclass
