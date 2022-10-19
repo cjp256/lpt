@@ -124,12 +124,13 @@ class ServiceGraph:
     def generate_digraph(  # pylint: disable=too-many-locals
         self,
     ) -> str:
-        edges = set()
+        lines = [f'digraph "{self.service_name}" {{', "  rankdir=LR;"]
         graphed_units = set()
         unit_dependencies = sorted(
             self.walk_unit_dependencies(), key=lambda x: x[0].unit
         )
 
+        edges = []
         for s1, s2 in unit_dependencies:
             graphed_units.add(s1)
             graphed_units.add(s2)
@@ -138,7 +139,17 @@ class ServiceGraph:
             color = "red" if s2.is_failed() else "green"
 
             edge = f'  "{label_s1}"->"{label_s2}" [color="{color}"];'
-            edges.add(edge)
+            edges.append(edge)
+
+        lines += [
+            "subgraph systemd-units {{",
+            "style=filled;",
+            "color=lightgrey;",
+            "node [style=filled,color=grey];",
+            "label=systemd-units",
+            *edges,
+            "}",
+        ]
 
         # Add cloud-init frames.
         for service_name, stage in {
@@ -147,24 +158,31 @@ class ServiceGraph:
             "cloud-config.service": "modules-config",
             "cloud-final.service": "modules-final",
         }.items():
-
             service = self.units[service_name]
             if service not in graphed_units:
                 continue
 
             label_s1 = self.get_unit_label(service)
             stage_frames = [f for f in self.frames if f.stage == stage]
+            edges = []
             for frame in stage_frames:
                 color = "red" if frame.is_failed() else "green"
+                logger.debug("frame: %r is_failed: %r", frame, frame.is_failed)
 
                 label_s2 = self.get_frame_label(frame)
-                edges.add(f'  "{label_s1}"->"{label_s2}" [color="{color}"];')
+                edges.append(f'  "{label_s1}"->"{label_s2}" [color="{color}"];')
 
-        lines = [
-            f'digraph "{self.service_name}" {{',
-            "  rankdir=LR;",
-            *sorted(edges),
-            "}",
-        ]
+            label = f"cloud-init:{stage}"
+            lines += [
+                f"subgraph {label} {{",
+                "style=filled;",
+                "color=lightgrey;",
+                "node [style=filled,color=pink];",
+                f"label={label}",
+                *edges,
+                "}",
+            ]
+
+        lines.append("}")
         digraph = "\n".join(lines)
         return digraph
