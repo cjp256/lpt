@@ -200,7 +200,7 @@ class ServiceGraph:
                 for f, _ in frame_dependencies
                 if f.stage == stage and f.parent is None
             ]
-            for frame in stage_root_frames:
+            for frame in set(stage_root_frames):
                 color = "red" if frame.is_failed() else "green"
                 label_f2 = self.get_frame_label(frame)
                 edges.append(f'    "{service_label}"->"{label_f2}" [color="{color}"];')
