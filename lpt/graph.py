@@ -87,6 +87,7 @@ class ServiceGraph:
 
             service = self.units.get(service_name)
             if service is None:
+                logger.debug("service not found: %r", self.units)
                 return
 
             for name in service.after:
