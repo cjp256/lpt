@@ -172,5 +172,8 @@ class ServiceGraph:
         logger.debug("lines: %r", lines)
         digraph = "\n".join(lines)
         logger.debug("digraph: %r", digraph)
+
+        import pdb
+        pdb.set_trace()
         return digraph
 
