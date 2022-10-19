@@ -14,7 +14,7 @@ from .time import calculate_reference_timestamp
 logger = logging.getLogger("lpt.cloudinit")
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(eq=True)
 class CloudInitFrame(Event):
     stage: str
     module: str
