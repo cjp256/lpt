@@ -146,7 +146,7 @@ class ServiceGraph:
             "    style=filled;",
             "    color=lightgrey;",
             "    node [style=filled,color=grey];",
-            "    label=systemd-units",
+            '    label="systemd-units"',
             *edges,
             "  }",
         ]
@@ -178,7 +178,7 @@ class ServiceGraph:
                 "    style=filled;",
                 "    color=lightgrey;",
                 "    node [style=filled,color=pink];",
-                f"   label={label}",
+                f'   label="{label}"',
                 *edges,
                 "  }",
             ]
