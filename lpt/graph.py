@@ -114,6 +114,8 @@ class ServiceGraph:
                 _walk_dependencies(name)
 
         _walk_dependencies(self.service_name)
+
+        print(deps)
         return deps
 
     def as_dict(self) -> dict:
