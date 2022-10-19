@@ -119,9 +119,7 @@ def main_graph(args) -> None:
         frames=frames,
     ).generate_digraph()
 
-    print("********")
     print(digraph)
-    print("********")
 
 
 def main_help(parser, _):
