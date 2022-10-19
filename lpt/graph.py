@@ -170,4 +170,7 @@ class ServiceGraph:
             "}",
         ]
         logger.debug("lines: %r", lines)
-        return "\n".join(lines)
+        digraph = "\n".join(lines)
+        logger.debug("digraph: %r", digraph)
+        return digraph
+
