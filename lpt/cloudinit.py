@@ -9,15 +9,9 @@ from typing import List, Optional, Union
 import dateutil.parser
 
 from .event import Event
-from .service import Service
 from .time import calculate_reference_timestamp
 
 logger = logging.getLogger("lpt.cloudinit")
-
-
-@dataclasses.dataclass(frozen=True, eq=True)
-class CloudInitService(Service):
-    stage: str
 
 
 @dataclasses.dataclass
@@ -30,6 +24,8 @@ class CloudInitFrame(Event):
     timestamp_monotonic_start: float
     duration: float
     result: str
+    parent: Optional["CloudInitFrame"]
+    children: List["CloudInitFrame"]
 
     def get_time_to_complete(self) -> float:
         return self.timestamp_monotonic_finish - self.timestamp_monotonic_start
@@ -46,16 +42,6 @@ class CloudInitFrame(Event):
         obj["timestamp_realtime_start"] = str(self.timestamp_realtime)
         obj["timestamp_realtime_finish"] = str(self.timestamp_realtime)
         return obj
-
-    def as_service(self) -> CloudInitService:
-        return CloudInitService(
-            name=self.module,
-            stage=self.stage,
-            time_to_activate=self.duration,
-            failed=self.result != "SUCCESS",
-            timestamp_monotonic_start=self.timestamp_monotonic_start,
-            timestamp_monotonic_finish=self.timestamp_monotonic_finish,
-        )
 
 
 @dataclasses.dataclass
@@ -274,39 +260,60 @@ class CloudInit:
         ]
 
     def get_frames(self) -> List[CloudInitFrame]:
-        stack: deque[CloudInitEntry] = deque()
         frames: List[CloudInitFrame] = []
-        for entry in self.entries:
-            if entry.event_type == "start":
-                stack.append(entry)
-            if entry.event_type == "finish":
-                try:
-                    start = stack.pop()
-                except IndexError:
-                    logger.debug("Ignoring finish event without start: %r", entry)
-                    continue
+        stack: deque[CloudInitFrame] = deque()
 
-                assert start.event_type == "start"
+        for entry in self.entries:
+            try:
+                parent = stack[-1]
+            except IndexError:
+                parent = None
+
+            if entry.event_type == "start":
                 assert entry.module
                 assert entry.result
                 assert entry.stage
-                assert start.stage == entry.stage
 
                 frame = CloudInitFrame(
                     source="cloudinit",
                     label="CLOUDINIT_FRAME",
-                    timestamp_realtime=start.timestamp_realtime,
-                    timestamp_monotonic=start.timestamp_monotonic,
-                    duration=entry.timestamp_monotonic - start.timestamp_monotonic,
+                    timestamp_realtime=entry.timestamp_realtime,
+                    timestamp_monotonic=entry.timestamp_monotonic,
+                    duration=0,
                     stage=entry.stage,
                     module=entry.module,
                     timestamp_realtime_finish=entry.timestamp_realtime,
-                    timestamp_monotonic_finish=entry.timestamp_monotonic,
-                    timestamp_realtime_start=start.timestamp_realtime,
-                    timestamp_monotonic_start=start.timestamp_monotonic,
-                    result=entry.result,
+                    timestamp_monotonic_finish=0,
+                    timestamp_realtime_start=entry.timestamp_realtime,
+                    timestamp_monotonic_start=entry.timestamp_monotonic,
+                    children=[],
+                    parent=parent,
+                    result="INCOMPLETE",
                 )
+
+                if parent:
+                    parent.children.append(frame)
+
                 frames.append(frame)
+
+            if entry.event_type == "finish":
+                try:
+                    frame = stack[-1]
+                except IndexError:
+                    logger.debug("Ignoring finish event without start: %r", entry)
+                    continue
+
+                assert entry.module
+                assert entry.result
+                assert entry.stage
+                assert frame.stage == entry.stage
+                assert frame.module == entry.module
+
+                frame.timestamp_realtime_finish = entry.timestamp_realtime
+                frame.timestamp_monotonic_finish = entry.timestamp_monotonic
+                frame.duration = entry.timestamp_monotonic - frame.timestamp_monotonic
+                frame.result = entry.result
+
         return frames
 
     def get_events_of_interest(  # pylint:disable=too-many-branches

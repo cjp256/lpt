@@ -70,9 +70,7 @@ class ServiceGraph:
 
         return label
 
-    def walk_frame_dependencies(
-            self
-            ) -> Set[Tuple[CloudInitFrame, CloudInitFrame]]:
+    def walk_frame_dependencies(self) -> Set[Tuple[CloudInitFrame, CloudInitFrame]]:
         for frame in self.frames:
             print(frame)
 
