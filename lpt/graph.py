@@ -185,6 +185,6 @@ class ServiceGraph:
 
         start_unit = self.units[self.service_name]
         start_unit_label = self.get_unit_label(start_unit)
-        lines.extend([f"  {start_unit_label} [shape=Mdiamond];", "}"])
+        lines.extend([f'  "{start_unit_label}" [shape=Mdiamond];', "}"])
         digraph = "\n".join(lines)
         return digraph
