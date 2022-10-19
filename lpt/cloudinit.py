@@ -294,10 +294,11 @@ class CloudInit:
                     parent.children.append(frame)
 
                 frames.append(frame)
+                stack.append(frame)
 
             if entry.event_type == "finish":
                 try:
-                    frame = stack[-1]
+                    frame = stack.pop()
                 except IndexError:
                     logger.debug("Ignoring finish event without start: %r", entry)
                     continue
