@@ -117,9 +117,6 @@ class ServiceGraph:
                 _walk_dependencies(name)
 
         _walk_dependencies(self.service_name)
-
-        logger.debug("deps: %r", deps)
-
         return deps
 
     def as_dict(self) -> dict:
@@ -134,6 +131,7 @@ class ServiceGraph:
         graphed_units = set()
 
         for s1, s2 in sorted(unit_dependencies, key=lambda x: x[0].unit):
+            logger.debug("ading edge for: %r -> %r", s1, s2)
             graphed_units.add(s1)
             graphed_units.add(s2)
             label_s1 = self.get_unit_label(s1)
