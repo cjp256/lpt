@@ -189,16 +189,27 @@ class ServiceGraph:
             service = self.units[service_name]
             if service not in graphed_units:
                 continue
+            service_label = self.get_unit_label(service)
 
-            label_s1 = self.get_unit_label(service)
-            stage_frames = [f for f in self.frames if f.stage == stage]
             edges = []
-            for frame in stage_frames:
+            stage_root_frames = [
+                f
+                for f, _ in frame_dependencies
+                if f.stage == stage and f.parent is None
+            ]
+            for frame in stage_root_frames:
                 color = "red" if frame.is_failed() else "green"
-                logger.debug("frame: %r is_failed: %r", frame, frame.is_failed)
+                label_f2 = self.get_frame_label(frame)
+                edges.append(f'    "{service_label}"->"{label_f2}" [color="{color}"];')
 
-                label_s2 = self.get_frame_label(frame)
-                edges.append(f'    "{label_s1}"->"{label_s2}" [color="{color}"];')
+            stage_frames = [
+                (f1, f2) for f1, f2 in frame_dependencies if f1.stage == stage
+            ]
+            for f1, f2 in stage_frames:
+                color = "red" if f2.is_failed() else "green"
+                label_f1 = self.get_frame_label(f1)
+                label_f2 = self.get_frame_label(f2)
+                edges.append(f'    "{label_f1}"->"{label_f2}" [color="{color}"];')
 
             label = f"cloud-init:{stage}"
             lines += [
