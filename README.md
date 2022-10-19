@@ -26,3 +26,9 @@ lpt analyze --journal-path tests/data/one-boot/journal.txt --cloudinit-log-path 
 lpt analyze
 lpt analyze --boot
 ```
+
+## Graph system dependencies
+
+```
+lpt graph --service ssh.service --filter-conditional-result-no --filter-service systemd-journald.socket
+```
