@@ -173,7 +173,7 @@ class ServiceGraph:
             edges.append(edge)
 
         lines += [
-            '  subgraph "systemd" {',
+            '  subgraph "cluster:systemd" {',
             "    style=filled;",
             "    color=lightgrey;",
             "    node [style=filled,color=grey];",
@@ -212,7 +212,7 @@ class ServiceGraph:
                 label_f2 = self.get_frame_label(f2)
                 edges.append(f'    "{label_f1}"->"{label_f2}" [color="{color}"];')
 
-            label = f"cloud-init:{stage}"
+            label = f"cluster:{stage}"
             lines += [
                 f'  subgraph "{label}" {{',
                 "    style=filled;",
