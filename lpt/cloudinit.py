@@ -31,6 +31,15 @@ class CloudInitFrame(Event):
     duration: float
     result: str
 
+    def get_time_to_complete(self) -> float:
+        return self.timestamp_monotonic_finish - self.timestamp_monotonic_start
+
+    def get_time_of_completion(self) -> float:
+        return self.timestamp_monotonic_finish
+
+    def is_failed(self) -> bool:
+        return self.result != "SUCCESS"
+
     def as_dict(self) -> dict:
         obj = self.__dict__.copy()
         obj["timestamp_realtime"] = str(self.timestamp_realtime)

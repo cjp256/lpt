@@ -1,48 +1,165 @@
+import dataclasses
 import logging
-from typing import List, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
-from .cloudinit import CloudInitService
-from .systemd import Service
+from .cloudinit import CloudInitFrame
+from .systemd import Systemd, SystemdUnit
 
 logger = logging.getLogger("lpt.graph")
 
 
-def generate_dependency_digraph(
-    name: str,
-    *,
-    systemd_service_dependencies: Set[Tuple[Service, Service]],
-    cloud_init_services: List[CloudInitService],
-) -> str:
-    edges = set()
+@dataclasses.dataclass
+class ServiceGraph:
+    def __init__(
+        self,
+        service_name: str,
+        *,
+        filter_services: List[str],
+        filter_conditional_result_no: bool = False,
+        filter_inactive: bool = True,
+        systemd: Optional[Systemd] = None,
+        units: Optional[Dict[str, SystemdUnit]] = None,
+        frames: Optional[List[CloudInitFrame]] = None,
+    ) -> None:
 
-    for s1, s2 in sorted(systemd_service_dependencies, key=lambda x: x[0].name):
-        label_s1 = s1.get_label()
-        label_s2 = s2.get_label()
-        edges.add(f'  "{label_s1}"->"{label_s2}" [color="green"];')
+        self.service_name = service_name
+        self.filter_services = filter_services
+        self.filter_conditional_result_no = filter_conditional_result_no
+        self.filter_inactive = filter_inactive
 
-    # Add cloud-init frames.
-    cloud_init_services = sorted(
-        cloud_init_services, key=lambda x: x.timestamp_monotonic_start
-    )
-    for s1, _ in sorted(systemd_service_dependencies, key=lambda x: x[0].name):
-        mappings = {
+        self.systemd = systemd if systemd else Systemd.query()
+        self.units: Dict[str, SystemdUnit] = units if units else {}
+        self.frames: List[CloudInitFrame] = frames if frames else []
+
+    def get_frame_label(self, frame: CloudInitFrame) -> str:
+        """Label cloud-init frame."""
+        label = frame.module
+        notes = []
+
+        time_to_activate = frame.get_time_to_complete()
+        if time_to_activate:
+            notes.append(f"+{time_to_activate:.03f}s")
+
+        time_of_activation = frame.get_time_of_completion()
+        notes.append(f"@{time_of_activation:.03f}s")
+
+        if frame.is_failed():
+            notes.append("*FAILED*")
+
+        if notes:
+            label += " (" + " ".join(notes) + ")"
+
+        return label
+
+    def get_unit_label(self, unit: SystemdUnit) -> str:
+        """Label systemd unit."""
+        label = unit.unit
+        notes = []
+
+        time_to_activate = unit.get_time_to_activate()
+        if time_to_activate:
+            notes.append(f"+{time_to_activate:.03f}s")
+
+        time_of_activation = unit.get_time_of_activation()
+        notes.append(f"@{time_of_activation:.03f}s")
+
+        if unit.is_failed():
+            notes.append("*FAILED*")
+
+        if notes:
+            label += " (" + " ".join(notes) + ")"
+
+        return label
+
+    def walk_unit_dependencies(
+        self,
+    ) -> Set[Tuple[SystemdUnit, SystemdUnit]]:
+        deps = set()
+        seen = set()
+
+        def _walk_dependencies(service_name: str) -> None:
+            if service_name in seen:
+                return
+
+            seen.add(service_name)
+
+            service = self.units.get(service_name)
+            if service is None:
+                return
+
+            for name in service.after:
+                dependency = self.units.get(name)
+                if dependency is None:
+                    continue
+
+                if not dependency.is_active():
+                    continue
+
+                if name in self.filter_services:
+                    continue
+
+                if (
+                    self.filter_conditional_result_no
+                    and not dependency.condition_result
+                ):
+                    continue
+
+                if (
+                    self.filter_inactive
+                    and not dependency.active_enter_timestamp_monotonic
+                ):
+                    continue
+
+                deps.add((service, dependency))
+                _walk_dependencies(name)
+
+        _walk_dependencies(self.service_name)
+        return deps
+
+    def as_dict(self) -> dict:
+        return self.__dict__.copy()
+
+    def generate_digraph(
+        self,
+    ) -> str:
+        edges = set()
+
+        unit_dependencies = self.walk_unit_dependencies()
+        graphed_units = set()
+
+        for s1, s2 in sorted(unit_dependencies, key=lambda x: x[0].unit):
+            graphed_units.add(s1)
+            graphed_units.add(s2)
+            label_s1 = self.get_unit_label(s1)
+            label_s2 = self.get_unit_label(s2)
+            color = "red" if s2.is_failed() else "green"
+
+            edges.add(f'  "{label_s1}"->"{label_s2}" [color="{color}"];')
+
+        # Add cloud-init frames.
+        for service_name, stage in {
             "cloud-init-local.service": "init-local",
             "cloud-init.service": "init-network",
             "cloud-config.service": "modules-config",
             "cloud-final.service": "modules-final",
-        }
-        stage = mappings.pop(s1.name, None)
-        if not stage:
-            continue
+        }.items():
 
-        label_s1 = s1.get_label()
-        for service_frame in cloud_init_services.copy():
-            if service_frame.stage != stage:
+            service = self.units[service_name]
+            if service not in graphed_units:
                 continue
 
-            label_s2 = service_frame.get_label()
-            edges.add(f'  "{label_s1}"->"{label_s2}" [color="green"];')
-            cloud_init_services.remove(service_frame)
+            label_s1 = self.get_unit_label(service)
+            stage_frames = [f for f in self.frames if f.stage == stage]
+            for frame in stage_frames:
+                color = "red" if frame.is_failed() else "green"
 
-    lines = [f'digraph "{name}" {{', "  rankdir=LR;", *sorted(edges), "}"]
-    return "\n".join(lines)
+                label_s2 = self.get_frame_label(frame)
+                edges.add(f'  "{label_s1}"->"{label_s2}" [color="{color}"];')
+
+        lines = [
+            f'digraph "{self.service_name}" {{',
+            "  rankdir=LR;",
+            *sorted(edges),
+            "}",
+        ]
+        return "\n".join(lines)

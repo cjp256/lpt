@@ -3,13 +3,13 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import List, Set, Tuple
+from typing import List
 
 from .cloudinit import CloudInit
 from .event import Event
-from .graph import generate_dependency_digraph
+from .graph import ServiceGraph
 from .journal import Journal
-from .systemd import Service, walk_systemd_service_dependencies
+from .systemd import Systemctl, Systemd
 
 logger = logging.getLogger("lpt")
 
@@ -101,25 +101,25 @@ def main_analyze_journal(args) -> None:
 
 
 def main_graph(args) -> None:
-    dependencies: Set[Tuple[Service, Service]] = set()
-    dependencies |= walk_systemd_service_dependencies(
-        args.service,
-        filter_services=sorted(args.filter_service),
-        filter_conditional_result_no=args.filter_conditional_result_no,
-    )
     cloudinits = analyze_cloudinit(args.cloudinit_log_path)
     if cloudinits:
         cloudinit = cloudinits[-1]
-        cloud_init_services = [f.as_service() for f in cloudinit.get_frames()]
+        frames = cloudinit.get_frames()
     else:
-        cloud_init_services = []
+        frames = []
 
-    graph = generate_dependency_digraph(
+    systemd = Systemd.query()
+    units = Systemctl.get_units()
+    digraph = ServiceGraph(
         args.service,
-        systemd_service_dependencies=dependencies,
-        cloud_init_services=cloud_init_services,
-    )
-    print(graph)
+        filter_services=sorted(args.filter_service),
+        filter_conditional_result_no=args.filter_conditional_result_no,
+        systemd=systemd,
+        units=units,
+        frames=frames,
+    ).generate_digraph()
+
+    print(digraph)
 
 
 def main_help(parser, _):
