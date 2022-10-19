@@ -169,4 +169,5 @@ class ServiceGraph:
             *sorted(edges),
             "}",
         ]
+        logger.debug("lines: %r", lines)
         return "\n".join(lines)
