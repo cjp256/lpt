@@ -128,10 +128,11 @@ class ServiceGraph:
         edges = set()
 
         unit_dependencies = self.walk_unit_dependencies()
+        unit_dependencies = sorted(unit_dependencies, key=lambda x: x[0].unit)
         graphed_units = set()
 
         logger.debug("deps: %r", unit_dependencies)
-        for s1, s2 in sorted(unit_dependencies, key=lambda x: x[0].unit):
+        for s1, s2 in unit_dependencies:
             logger.debug("ading edge for: %r -> %r", s1, s2)
             graphed_units.add(s1)
             graphed_units.add(s2)
