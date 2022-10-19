@@ -40,10 +40,16 @@ class CloudInitFrame(Event):
         return self.result != "SUCCESS"
 
     def as_dict(self) -> dict:
-        obj = self.__dict__.copy()
-        obj["timestamp_realtime"] = str(self.timestamp_realtime)
+        obj = super().as_dict()
         obj["timestamp_realtime_start"] = str(self.timestamp_realtime)
         obj["timestamp_realtime_finish"] = str(self.timestamp_realtime)
+
+        parent = obj.pop("parent")
+        if parent:
+            obj["parent"] = "/".join([parent.stage, parent.module])
+
+        children = obj.pop("children")
+        obj["children"] = ["/".join([c.stage, c.module]) for c in children]
         return obj
 
 

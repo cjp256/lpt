@@ -128,9 +128,7 @@ def main_help(parser, _):
 
 def main():
     parser = argparse.ArgumentParser(add_help=True)
-    parser.add_argument(
-        "--debug", help="output debug info", action="store_true", default=True
-    )
+    parser.add_argument("--debug", help="output debug info", action="store_true")
     parser.set_defaults(func=lambda x: main_help(parser, x))
 
     subparsers = parser.add_subparsers()
