@@ -70,10 +70,10 @@ class ServiceGraph:
 
         return label
 
-    def walk_frame_dependencies(self) -> Set[Tuple[CloudInitFrame, CloudInitFrame]]:
+    def walk_frame_dependencies(self) -> List[Tuple[CloudInitFrame, CloudInitFrame]]:
         roots = [f for f in self.frames if f.parent is None]
-        deps = set()
-        seen = set()
+        deps = []
+        seen = []
 
         for frame in self.frames:
             if frame.parent is None:
@@ -85,10 +85,10 @@ class ServiceGraph:
                 logger.debug("seen: %s", frame)
                 return
 
-            seen.add(frame)
+            seen.append(frame)
 
             for child in frame.children:
-                deps.add((frame, child))
+                deps.append((frame, child))
                 _walk_dependencies(child)
 
         for root in roots:
