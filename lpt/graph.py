@@ -72,6 +72,9 @@ class ServiceGraph:
 
     def walk_frame_dependencies(self) -> Set[Tuple[CloudInitFrame, CloudInitFrame]]:
         roots = [f for f in self.frames if f.parent is None]
+        for r in roots:
+            print("r=", r)
+
         deps = set()
         seen = set()
 
