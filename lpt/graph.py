@@ -198,7 +198,6 @@ class ServiceGraph:
             stage_root_frames = [
                 f for f in self.frames if f.stage == stage and f.parent is None
             ]
-
             for frame in stage_root_frames:
                 color = "red" if frame.is_failed() else "green"
                 label_f2 = self.get_frame_label(frame)
