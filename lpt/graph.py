@@ -139,8 +139,9 @@ class ServiceGraph:
             label_s2 = self.get_unit_label(s2)
             color = "red" if s2.is_failed() else "green"
 
-            edges.add(f'  "{label_s1}"->"{label_s2}" [color="{color}"];')
-            print(edges)
+            edge = f'  "{label_s1}"->"{label_s2}" [color="{color}"];'
+            edges.add(edge)
+            logger.debug("added edge: %r", edges)
 
         # Add cloud-init frames.
         for service_name, stage in {
