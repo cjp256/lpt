@@ -310,7 +310,9 @@ class CloudInit:
 
                 frame.timestamp_realtime_finish = entry.timestamp_realtime
                 frame.timestamp_monotonic_finish = entry.timestamp_monotonic
-                frame.duration = entry.timestamp_monotonic - frame.timestamp_monotonic
+                frame.duration = (
+                    entry.timestamp_monotonic - frame.timestamp_monotonic_start
+                )
                 frame.result = entry.result
 
         return frames
