@@ -78,7 +78,9 @@ class ServiceGraph:
         seen = set()
 
         def _walk_dependencies(service_name: str) -> None:
+            logger.debug("walking: %s", service_name)
             if service_name in seen:
+                logger.debug("seen: %s", service_name)
                 return
 
             seen.add(service_name)
@@ -115,7 +117,6 @@ class ServiceGraph:
 
         _walk_dependencies(self.service_name)
 
-        print(deps)
         return deps
 
     def as_dict(self) -> dict:
