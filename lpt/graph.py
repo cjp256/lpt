@@ -148,7 +148,7 @@ class ServiceGraph:
             "    node [style=filled,color=grey];",
             "    label=systemd-units",
             *edges,
-            "}",
+            "  }",
         ]
 
         # Add cloud-init frames.
@@ -180,7 +180,7 @@ class ServiceGraph:
                 "    node [style=filled,color=pink];",
                 f"   label={label}",
                 *edges,
-                "}",
+                "  }",
             ]
 
         start_unit = self.units[self.service_name]
