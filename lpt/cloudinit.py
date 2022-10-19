@@ -4,7 +4,7 @@ import logging
 import re
 from collections import deque
 from pathlib import Path
-from typing import List, Optional, Set, Union
+from typing import FrozenSet, List, Optional, Union
 
 import dateutil.parser
 
@@ -25,7 +25,7 @@ class CloudInitFrame(Event):
     duration: float
     result: str
     parent: Optional["CloudInitFrame"]
-    children: Set["CloudInitFrame"]
+    children: FrozenSet["CloudInitFrame"]
 
     def get_time_to_complete(self) -> float:
         return self.timestamp_monotonic_finish - self.timestamp_monotonic_start
@@ -291,13 +291,15 @@ class CloudInit:
                     timestamp_monotonic_finish=0,
                     timestamp_realtime_start=entry.timestamp_realtime,
                     timestamp_monotonic_start=entry.timestamp_monotonic,
-                    children=set(),
+                    children=frozenset(),
                     parent=parent,
                     result="INCOMPLETE",
                 )
 
                 if parent:
-                    parent.children.add(frame)
+                    children = set(parent.children)
+                    children.add(frame)
+                    parent.children = frozenset(children)
 
                 frames.append(frame)
                 stack.append(frame)
