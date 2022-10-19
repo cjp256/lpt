@@ -138,15 +138,15 @@ class ServiceGraph:
             label_s2 = self.get_unit_label(s2)
             color = "red" if s2.is_failed() else "green"
 
-            edge = f'  "{label_s1}"->"{label_s2}" [color="{color}"];'
+            edge = f'    "{label_s1}"->"{label_s2}" [color="{color}"];'
             edges.append(edge)
 
         lines += [
-            "subgraph systemd-units {{",
-            "style=filled;",
-            "color=lightgrey;",
-            "node [style=filled,color=grey];",
-            "label=systemd-units",
+            '  subgraph "systemd" {',
+            "    style=filled;",
+            "    color=lightgrey;",
+            "    node [style=filled,color=grey];",
+            "    label=systemd-units",
             *edges,
             "}",
         ]
@@ -170,21 +170,21 @@ class ServiceGraph:
                 logger.debug("frame: %r is_failed: %r", frame, frame.is_failed)
 
                 label_s2 = self.get_frame_label(frame)
-                edges.append(f'  "{label_s1}"->"{label_s2}" [color="{color}"];')
+                edges.append(f'    "{label_s1}"->"{label_s2}" [color="{color}"];')
 
             label = f"cloud-init:{stage}"
             lines += [
-                f"subgraph {label} {{",
-                "style=filled;",
-                "color=lightgrey;",
-                "node [style=filled,color=pink];",
-                f"label={label}",
+                f'  subgraph "{label}" {{',
+                "    style=filled;",
+                "    color=lightgrey;",
+                "    node [style=filled,color=pink];",
+                f"   label={label}",
                 *edges,
                 "}",
             ]
 
         start_unit = self.units[self.service_name]
         start_unit_label = self.get_unit_label(start_unit)
-        lines.extend([f"{start_unit_label} [shape=Mdiamond];", "}"])
+        lines.extend([f"  {start_unit_label} [shape=Mdiamond];", "}"])
         digraph = "\n".join(lines)
         return digraph
