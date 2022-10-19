@@ -271,7 +271,6 @@ class CloudInit:
 
             if entry.event_type == "start":
                 assert entry.module
-                assert entry.result
                 assert entry.stage
 
                 frame = CloudInitFrame(
