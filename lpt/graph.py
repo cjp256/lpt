@@ -37,8 +37,7 @@ class ServiceGraph:
         notes = []
 
         time_to_activate = frame.get_time_to_complete()
-        if time_to_activate:
-            notes.append(f"+{time_to_activate:.03f}s")
+        notes.append(f"+{time_to_activate:.03f}s")
 
         time_of_activation = frame.get_time_of_completion()
         notes.append(f"@{time_of_activation:.03f}s")
