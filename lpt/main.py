@@ -139,89 +139,88 @@ def configure_ssh(args) -> Optional[SSH]:
 
 
 def main():
+    all_arguments = {
+        "--boot": {"help": "only analyze this last boot", "action": "store_true"},
+        "--cloudinit-log-path": {
+            "default": "/var/log/cloud-init.log",
+            "help": "cloudinit logs path, use 'local' to fetch directly",
+            "type": Path,
+        },
+        "--debug": {"help": "output debug info", "action": "store_true"},
+        "--event-type": {
+            "default": [],
+            "help": "event types to output",
+            "action": "extend",
+            "nargs": "+",
+        },
+        "--filter-conditional-result-no": {
+            "help": "Filter services that are not started due to conditional",
+            "action": "store_true",
+        },
+        "--filter-service": {
+            "help": "Filter services by name",
+            "default": [],
+            "action": "extend",
+            "nargs": "+",
+        },
+        "--journal-path": {
+            "default": "/var/log/journal",
+            "help": "journal directory",
+            "type": Path,
+        },
+        "--output": {
+            "default": Path("lpt-output"),
+            "help": "output directory to store artifacts",
+            "type": Path,
+        },
+        "--ssh-host": {"help": "collect data via ssh"},
+        "--ssh-user": {"help": "collect data via ssh"},
+        "--ssh-proxy-host": {"help": "use ssh proxy as jump host"},
+        "--ssh-proxy-user": {"help": "use ssh proxy as jump host"},
+    }
+
     parser = argparse.ArgumentParser(add_help=True)
-    parser.add_argument("--debug", help="output debug info", action="store_true")
-    parser.add_argument(
-        "--boot", help="only analyze this last boot", action="store_true"
-    )
-    parser.add_argument(
-        "--journal-path",
-        default="/var/log/journal",
-        help="journal directory",
-        type=Path,
-    )
-    parser.add_argument(
-        "--cloudinit-log-path",
-        default="/var/log/cloud-init.log",
-        help="cloudinit logs path, use 'local' to fetch directly",
-        type=Path,
-    )
-    parser.add_argument(
-        "--ssh-host",
-        help="collect data via ssh",
-    )
-    parser.add_argument(
-        "--ssh-user",
-        help="collect data via ssh",
-    )
-    parser.add_argument(
-        "--ssh-proxy-host",
-        help="use ssh proxy as jump host",
-    )
-    parser.add_argument(
-        "--ssh-proxy-user",
-        help="use ssh proxy as jump host",
-    )
-    parser.add_argument(
-        "--output",
-        default=Path("lpt-output"),
-        help="output directory to store artifacts",
-        type=Path,
-    )
-    parser.add_argument(
-        "--event-type",
-        default=[],
-        help="event types to output",
-        action="extend",
-        nargs="+",
-    )
+
     parser.set_defaults(func=lambda x: main_help(parser, x))
 
-    subparsers = parser.add_subparsers()
-    analyze_parser = subparsers.add_parser("analyze-cloudinit")
-    analyze_parser.set_defaults(func=main_analyze_cloudinit)
+    for opt in [
+        "--debug",
+        "--output",
+        "--ssh-host",
+        "--ssh-user",
+        "--ssh-proxy-host",
+        "--ssh-proxy-user",
+    ]:
+        parser.add_argument(opt, all_arguments[opt])
 
-    analyze_parser = subparsers.add_parser("analyze-journal")
-    analyze_parser.set_defaults(func=main_analyze_journal)
+    subparsers = parser.add_subparsers()
 
     analyze_parser = subparsers.add_parser("analyze")
     analyze_parser.set_defaults(func=main_analyze)
+    for opt in ["--boot", "--cloudinit-log-path", "--event-type", "--journal-path"]:
+        analyze_parser.add_argument(opt, **all_arguments[opt])
+
+    analyze_parser = subparsers.add_parser("analyze-cloudinit")
+    analyze_parser.set_defaults(func=main_analyze_cloudinit)
+    for opt in ["--boot", "--cloudinit-log-path", "--event-type"]:
+        analyze_parser.add_argument(opt, **all_arguments[opt])
+
+    analyze_parser = subparsers.add_parser("analyze-journal")
+    analyze_parser.set_defaults(func=main_analyze_journal)
+    for opt in ["--boot", "--event-type", "--journal-path"]:
+        analyze_parser.add_argument(opt, **all_arguments[opt])
 
     graph_parser = subparsers.add_parser("graph")
+    graph_parser.set_defaults(func=main_graph)
+    for opt in ["--filter-conditional-result-no", "--filter-service"]:
+        graph_parser.add_argument(opt, **all_arguments[opt])
+
     graph_parser.add_argument(
-        "--cloudinit-log-path",
-        default=Path("/var/log/cloud-init.log"),
-        help="cloudinit logs path, use 'local' to fetch directly",
-        type=Path,
-    )
-    graph_parser.add_argument(
-        "--filter-conditional-result-no",
-        help="Filter services that are not started due to conditional",
-        action="store_true",
-    )
-    graph_parser.add_argument(
-        "--filter-service",
-        help="Filter services by name",
-        default=[],
-        action="extend",
-        nargs="+",
-    )
-    graph_parser.add_argument(
-        "--service",
+        "service",
+        metavar="service",
         help="service to query dependencies for",
         default="sshd.service",
     )
-    graph_parser.set_defaults(func=main_graph)
 
     args = parser.parse_args()
 
@@ -231,6 +230,7 @@ def main():
         _init_logger(logging.INFO)
 
     args.output.mkdir(exist_ok=True, parents=True)
+    print(args)
     ssh = configure_ssh(args)
 
     args.func(args, ssh)
