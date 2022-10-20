@@ -212,7 +212,11 @@ def main():
 
     graph_parser = subparsers.add_parser("graph")
     graph_parser.set_defaults(func=main_graph)
-    for opt in ["--filter-conditional-result-no", "--filter-service"]:
+    for opt in [
+        "--cloudinit-log-path",
+        "--filter-conditional-result-no",
+        "--filter-service",
+    ]:
         graph_parser.add_argument(opt, **all_arguments[opt])
 
     graph_parser.add_argument(

@@ -15,9 +15,9 @@ pip install git+https://github.com/cjp256/lpt
 ## Run analysis using existing logs
 
 ```
-lpt --journal-path tests/data/one-boot/journal.txt analyze-journal
-lpt --cloudinit-log-path tests/data/one-boot/cloud-init.log analyze-cloudinit
-lpt --journal-path tests/data/one-boot/journal.txt --cloudinit-log-path tests/data/one-boot/cloud-init.log analyze
+lpt analyze --journal-path tests/data/one-boot/journal.txt --cloudinit-log-path tests/data/one-boot/cloud-init.log
+lpt analyze-cloudinit --cloudinit-log-path tests/data/one-boot/cloud-init.log
+lpt analyze-journal --journal-path tests/data/one-boot/journal.txt
 ```
 
 ## Run analysis on local system
@@ -36,5 +36,11 @@ lpt graph --service ssh.service --filter-conditional-result-no --filter-service 
 ## Remote anaylsis
 
 ```
-lpt --debug --ssh-proxy-host 10.144.133.148 --ssh-proxy-user cpatterson --ssh-host test-u1804m-x1.eastus.cloudapp.azure.com --ssh-user cpatterson analyze
+lpt --debug --ssh-host <host> --ssh-user <user> analyze
+```
+
+## Remote anaylsis with proxy/jump
+
+```
+lpt --debug --ssh-proxy-host <jump-host> --ssh-proxy-user <jump-user> --ssh-host <host> --ssh-user <user> analyze
 ```

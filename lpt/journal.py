@@ -90,14 +90,18 @@ class Journal:
     def load(
         cls, *, output_dir: Path, journal_path: Optional[Path], run=subprocess.run
     ) -> List["Journal"]:
-        cmd = ["journalctl", "-o", "json", "--no-pager"]
-        if journal_path:
-            cmd.extend(["-D", journal_path.as_posix()])
+        if journal_path and journal_path.is_file():
+            data = journal_path.read_bytes()
+        else:
+            cmd = ["journalctl", "-o", "json", "--no-pager"]
+            if journal_path:
+                cmd.extend(["-D", journal_path.as_posix()])
+            proc = run(cmd, capture_output=True, check=True)
+            data = proc.stdout
 
         journal_log = output_dir / "journal.log"
-        proc = run(cmd, capture_output=True, check=True)
-        journal_log.write_bytes(proc.stdout)
-        return cls.parse_json(proc.stdout)
+        journal_log.write_bytes(data)
+        return cls.parse_json(data)
 
     @classmethod
     def parse_json(cls, logs: bytes) -> List["Journal"]:
