@@ -240,7 +240,6 @@ class Systemctl:
             unit = SystemdUnit.parse(
                 list_properties=list_properties, show_properties=show_properties
             )
-            print(unit)
             units[name] = unit
 
         return units
