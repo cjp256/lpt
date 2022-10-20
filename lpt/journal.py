@@ -5,11 +5,12 @@ import logging
 import re
 import subprocess
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import dateutil.parser
 
 from .event import Event
+from .ssh import SSH
 
 logger = logging.getLogger("lpt.journal")
 
@@ -82,29 +83,25 @@ class Journal:
     entries: List[JournalEntry]
 
     @classmethod
-    def load_journal_host(cls) -> List["Journal"]:
-        proc = subprocess.run(
-            ["journalctl", "-o", "json"], capture_output=True, check=True
-        )
-        return cls.parse_json(proc.stdout)
+    def load_remote(cls, ssh: SSH, *, output_dir: Path) -> List["Journal"]:
+        cmd = ["journalctl", "-o", "json"]
+
+        journal_log = output_dir / "journal.log"
+        stdout, _, _ = ssh.run(cmd, capture_output=True, check=True)
+        assert isinstance(stdout, bytes)
+        journal_log.write_bytes(stdout)
+        return cls.parse_json(stdout)
 
     @classmethod
-    def load_journal_path(cls, path: Path) -> List["Journal"]:
-        if path == Path("/var/log/journal"):
-            proc = subprocess.run(
-                ["journalctl", "-o", "json"], capture_output=True, check=True
-            )
-            return cls.parse_json(proc.stdout)
+    def load(cls, *, output_dir: Path, journal_path: Optional[Path]) -> List["Journal"]:
+        cmd = ["journalctl", "-o", "json"]
+        if journal_path:
+            cmd.extend(["-D", journal_path.as_posix()])
 
-        if path.is_dir():
-            proc = subprocess.run(
-                ["journalctl", "-o", "json", "-D", str(path)],
-                capture_output=True,
-                check=True,
-            )
-            return cls.parse_json(proc.stdout)
-
-        return cls.parse_json(path.read_bytes())
+        journal_log = output_dir / "journal.log"
+        proc = subprocess.run(cmd, capture_output=True, check=True)
+        journal_log.write_bytes(proc.stdout)
+        return cls.parse_json(proc.stdout)
 
     @classmethod
     def parse_json(cls, logs: bytes) -> List["Journal"]:

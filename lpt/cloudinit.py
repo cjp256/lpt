@@ -9,6 +9,7 @@ from typing import FrozenSet, List, Optional, Union
 import dateutil.parser
 
 from .event import Event
+from .ssh import SSH
 from .time import calculate_reference_timestamp
 
 logger = logging.getLogger("lpt.cloudinit")
@@ -190,8 +191,23 @@ class CloudInit:
     reference_monotonic: Optional[datetime.datetime]
 
     @classmethod
-    def parse(  # pylint: disable=too-many-branches
-        cls, path: Path = Path("/var/log/cloud-init.log")
+    def load_remote(
+        cls,
+        ssh: SSH,
+        *,
+        output_dir: Path,
+    ) -> List["CloudInit"]:
+        remote_path = Path("/var/log/cloud-init.log")
+        local_path = output_dir / "cloud-init.log"
+        ssh.fetch(remote_path, local_path)
+        return cls.load(local_path, output_dir=output_dir)
+
+    @classmethod
+    def load(  # pylint: disable=too-many-branches,too-many-locals
+        cls,
+        path: Path = Path("/var/log/cloud-init.log"),
+        *,
+        output_dir: Path,
     ) -> List["CloudInit"]:
         """Parse cloud-init log and split by boot."""
         cloudinits = []
@@ -202,6 +218,11 @@ class CloudInit:
         last_stage = "init-local"
 
         logs = path.read_text(encoding="utf-8")
+
+        output_log = output_dir / "cloud-init.log"
+        if path != output_log:
+            output_log.write_text(logs)
+
         for line in logs.splitlines():
             try:
                 entry = CloudInitEntry.parse(line, reference_monotonic)
