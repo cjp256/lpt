@@ -58,8 +58,7 @@ class SystemdUnitList:
 
     @classmethod
     def parse_legacy_line(cls, line: str) -> "SystemdUnitList":
-        line = line.strip()
-        parts = line.split()
+        parts = line.strip().split()
         logger.debug("parsing legacy line: %r", parts)
         try:
             unit = parts[0]
@@ -263,6 +262,10 @@ class Systemctl:
             output = []
             lines = proc.stdout.splitlines()
             for line in lines:
+                line = line.strip()
+                # A blank line is before the legend, stop here.
+                if not line:
+                    break
                 try:
                     unit = SystemdUnitList.parse_legacy_line(line)
                 except ValueError:
