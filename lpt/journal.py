@@ -84,22 +84,18 @@ class Journal:
 
     @classmethod
     def load_remote(cls, ssh: SSH, *, output_dir: Path) -> List["Journal"]:
-        cmd = ["journalctl", "-o", "json"]
-
-        journal_log = output_dir / "journal.log"
-        stdout, _, _ = ssh.run(cmd, capture_output=True, check=True)
-        assert isinstance(stdout, bytes)
-        journal_log.write_bytes(stdout)
-        return cls.parse_json(stdout)
+        return cls.load(output_dir=output_dir, journal_path=None, run=ssh.run)  # type: ignore
 
     @classmethod
-    def load(cls, *, output_dir: Path, journal_path: Optional[Path]) -> List["Journal"]:
-        cmd = ["journalctl", "-o", "json"]
+    def load(
+        cls, *, output_dir: Path, journal_path: Optional[Path], run=subprocess.run
+    ) -> List["Journal"]:
+        cmd = ["journalctl", "-o", "json", "--no-pager"]
         if journal_path:
             cmd.extend(["-D", journal_path.as_posix()])
 
         journal_log = output_dir / "journal.log"
-        proc = subprocess.run(cmd, capture_output=True, check=True)
+        proc = run(cmd, capture_output=True, check=True)
         journal_log.write_bytes(proc.stdout)
         return cls.parse_json(proc.stdout)
 

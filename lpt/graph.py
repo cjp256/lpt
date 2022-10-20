@@ -14,10 +14,10 @@ class ServiceGraph:
         self,
         service_name: str,
         *,
+        systemd: Systemd,
         filter_services: List[str],
         filter_conditional_result_no: bool = False,
         filter_inactive: bool = True,
-        systemd: Optional[Systemd] = None,
         units: Optional[Dict[str, SystemdUnit]] = None,
         frames: Optional[List[CloudInitFrame]] = None,
     ) -> None:
@@ -27,7 +27,7 @@ class ServiceGraph:
         self.filter_conditional_result_no = filter_conditional_result_no
         self.filter_inactive = filter_inactive
 
-        self.systemd = systemd if systemd else Systemd.query()
+        self.systemd = systemd
         self.units: Dict[str, SystemdUnit] = units if units else {}
         self.frames: List[CloudInitFrame] = frames if frames else []
 

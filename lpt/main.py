@@ -100,8 +100,13 @@ def main_graph(args, ssh: Optional[SSH]) -> None:
     else:
         frames = []
 
-    systemd = Systemd.query()
-    units = Systemctl.get_units()
+    if ssh:
+        systemd = Systemd.load_remote(ssh, output_dir=args.output)
+        units = Systemctl.load_units_remote(ssh, output_dir=args.output)
+    else:
+        systemd = Systemd.load(output_dir=args.output)
+        units = Systemctl.load_units(output_dir=args.output)
+
     digraph = ServiceGraph(
         args.service,
         filter_services=sorted(args.filter_service),

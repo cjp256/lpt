@@ -3,7 +3,7 @@ import logging
 import shlex
 import subprocess
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Union
 
 import paramiko
 
@@ -63,9 +63,9 @@ class SSH:
         if as_sudo:
             cmd.insert(0, "sudo")
 
-        stdout, _, _ = self.run(cmd, capture_output=True, check=True)
-        assert isinstance(stdout, bytes)
-        local_path.write_bytes(stdout)
+        proc = self.run(cmd, capture_output=True, check=True)
+        assert isinstance(proc.stdout, bytes)
+        local_path.write_bytes(proc.stdout)
 
     def run(
         self,
@@ -74,40 +74,53 @@ class SSH:
         capture_output: bool = False,
         check: bool = False,
         text: bool = False
-    ) -> Tuple[Union[bytes, str, None], Union[bytes, str, None], int]:
-        stderr_out = b""
-        stdout_out = b""
+    ) -> subprocess.CompletedProcess:
+        stderr_out: Union[bytes, str, None] = b""
+        stdout_out: Union[bytes, str, None] = b""
         cmd_string = shlex.join(cmd)
 
         assert self.client
-        _, stdout, stderr = self.client.exec_command(cmd_string)
-        returncode = stdout.channel.recv_exit_status()
 
+        logger.debug("running command: %r", cmd_string)
+        stdin, stdout, stderr = self.client.exec_command(cmd_string)
+        stdin.close()
+
+        while True:
+            assert isinstance(stderr_out, bytes)
+            assert isinstance(stdout_out, bytes)
+
+            logger.debug("reading stdout")
+            stdout_read = stdout.read()
+            if stdout_read:
+                stdout_out += stdout_read
+            logger.debug("read %d bytes from stdout", len(stdout_read))
+
+            logger.debug("reading stderr")
+            stderr_read = stderr.read()
+            if stderr_read:
+                stderr_out += stderr_read
+            logger.debug("read %d bytes from stderr", len(stderr_read))
+
+            if not stdout_read and not stderr_read:
+                break
+
+        logger.debug("output read")
+
+        returncode = stdout.channel.recv_exit_status()
+        logger.debug("command returned: %r", returncode)
         if check and returncode != 0:
             raise subprocess.CalledProcessError(
                 returncode, cmd_string, stdout_out, stderr_out
             )
 
         if not capture_output:
-            return None, None, returncode
-
-        while True:
-            stderr_read = stderr.read()
-            if stderr_read:
-                stderr_out += stderr_read
-
-            stdout_read = stdout.read()
-            if stdout_read:
-                stdout_out += stdout_read
-
-            if not stderr_read and not stdout_read:
-                break
+            stdout_out = None
+            stderr_out = None
 
         if text:
-            return (
-                stdout_out.decode(encoding="utf-8", errors="strict"),
-                stderr_out.decode(encoding="utf-8", errors="strict"),
-                returncode,
-            )
+            assert isinstance(stderr_out, bytes)
+            assert isinstance(stdout_out, bytes)
+            stdout_out = stdout_out.decode(encoding="utf-8", errors="strict")
+            stderr_out = stderr_out.decode(encoding="utf-8", errors="strict")
 
-        return (stdout_out, stderr_out, returncode)
+        return subprocess.CompletedProcess(cmd, returncode, stdout_out, stderr_out)

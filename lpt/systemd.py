@@ -3,7 +3,10 @@ import datetime
 import json
 import logging
 import subprocess
+from pathlib import Path
 from typing import Dict, FrozenSet, Optional
+
+from .ssh import SSH
 
 logger = logging.getLogger("lpt.systemd")
 
@@ -162,6 +165,9 @@ class Systemctl:
     def show(
         cls,
         service_name: Optional[str] = None,
+        *,
+        output_dir: Path,
+        run=subprocess.run,
     ) -> Dict[str, str]:
         properties = {}
 
@@ -170,7 +176,7 @@ class Systemctl:
             cmd.extend(["--", service_name])
         try:
             logger.debug("Executing: %r", cmd)
-            proc = subprocess.run(
+            proc = run(
                 cmd,
                 check=True,
                 capture_output=True,
@@ -179,6 +185,13 @@ class Systemctl:
         except subprocess.CalledProcessError as error:
             logger.error("cmd (%r) failed (error=%r)", cmd, error)
             raise
+
+        # Save captured data
+        if service_name:
+            log = output_dir / f"systemctl-show-{service_name}.json"
+        else:
+            log = output_dir / "systemctl-show.json"
+        log.write_text(proc.stdout)
 
         lines = proc.stdout.strip().splitlines()
         for line in lines:
@@ -194,13 +207,19 @@ class Systemctl:
         return properties
 
     @classmethod
-    def get_units(cls) -> Dict[str, SystemdUnit]:
+    def load_units_remote(cls, ssh: SSH, *, output_dir: Path) -> Dict[str, SystemdUnit]:
+        return cls.load_units(run=ssh.run, output_dir=output_dir)  # type: ignore
+
+    @classmethod
+    def load_units(
+        cls, *, output_dir: Path, run=subprocess.run
+    ) -> Dict[str, SystemdUnit]:
         units = {}
 
         cmd = ["systemctl", "list-units", "--all", "-o", "json"]
         try:
             logger.debug("Executing: %r", cmd)
-            proc = subprocess.run(
+            proc = run(
                 cmd,
                 check=True,
                 capture_output=True,
@@ -210,10 +229,14 @@ class Systemctl:
             logger.error("cmd (%r) failed (error=%r)", cmd, error)
             raise
 
+        # Save captured data
+        log = output_dir / "systemctl-list-units.json"
+        log.write_text(proc.stdout)
+
         output = json.loads(proc.stdout)
         for list_properties in output:
             name = list_properties["unit"]
-            show_properties = cls.show(name)
+            show_properties = cls.show(name, output_dir=output_dir, run=run)
             unit = SystemdUnit.parse(
                 list_properties=list_properties, show_properties=show_properties
             )
@@ -231,9 +254,17 @@ class Systemd:
     finish_timestamp_monotonic: float
 
     @classmethod
-    def query(cls) -> "Systemd":
-        properties = Systemctl.show()
+    def load_remote(cls, ssh: SSH, *, output_dir: Path) -> "Systemd":
+        properties = Systemctl.show(output_dir=output_dir, run=ssh.run)  # type: ignore
+        return cls.parse(properties)
 
+    @classmethod
+    def load(cls, *, output_dir: Path) -> "Systemd":
+        properties = Systemctl.show(output_dir=output_dir)
+        return cls.parse(properties)
+
+    @classmethod
+    def parse(cls, properties: dict) -> "Systemd":
         userspace_timestamp = convert_systemctl_timestamp(
             properties["UserspaceTimestamp"]
         )
