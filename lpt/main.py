@@ -191,7 +191,7 @@ def main():
         "--ssh-proxy-host",
         "--ssh-proxy-user",
     ]:
-        parser.add_argument(opt, all_arguments[opt])
+        parser.add_argument(opt, **all_arguments[opt])
 
     subparsers = parser.add_subparsers()
 
