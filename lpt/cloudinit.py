@@ -54,12 +54,6 @@ class CloudInitFrame(Event):
         return obj
 
 
-# @dataclasses.dataclass(eq=True)
-# class CloudInitFrameUnfrozen(CloudInitFrame):
-#    def as_frozen(self) -> CloudInitFrame:
-#        return CloudInitFrame(**self.__dict__.copy())
-
-
 @dataclasses.dataclass
 class CloudInitEvent(Event):
     log_line: str
