@@ -56,6 +56,27 @@ class SystemdUnitList:
             unit=unit, active=active, load=load, sub=sub, description=description
         )
 
+    @classmethod
+    def parse_legacy_line(cls, line: str) -> "SystemdUnitList":
+        line = line.strip()
+        parts = line.split()
+        logger.debug("parsing legacy line: %r", parts)
+        try:
+            unit = parts[0]
+            if unit == "●":
+                parts = parts[1:]
+                unit = parts[0]
+            load = parts[1]
+            active = parts[2]
+            sub = parts[3]
+            description = " ".join(parts[4:])
+        except IndexError as exc:
+            raise ValueError(f"not a valid unit: {parts}") from exc
+
+        return cls(
+            unit=unit, active=active, load=load, sub=sub, description=description
+        )
+
 
 @dataclasses.dataclass(frozen=True, eq=True)
 class SystemdUnitShow:
@@ -216,7 +237,7 @@ class Systemctl:
     ) -> Dict[str, SystemdUnit]:
         units = {}
 
-        cmd = ["systemctl", "list-units", "--all", "-o", "json"]
+        cmd = ["systemctl", "list-units", "--all", "-o", "json", "--no-pager"]
         try:
             logger.debug("Executing: %r", cmd)
             proc = run(
@@ -233,7 +254,21 @@ class Systemctl:
         log = output_dir / "systemctl-list-units.json"
         log.write_text(proc.stdout)
 
-        output = json.loads(proc.stdout)
+        try:
+            output = json.loads(proc.stdout)
+        except json.JSONDecodeError:
+            logger.warning(
+                "failed to parse systemctl as json, falling back to legacy mode"
+            )
+            output = []
+            lines = proc.stdout.splitlines()
+            for line in lines:
+                try:
+                    unit = SystemdUnitList.parse_legacy_line(line)
+                except ValueError:
+                    continue
+                output.append(vars(unit))
+
         for list_properties in output:
             name = list_properties["unit"]
             show_properties = cls.show(name, output_dir=output_dir, run=run)
