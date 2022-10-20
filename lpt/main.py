@@ -178,6 +178,13 @@ def main():
         help="output directory to store artifacts",
         type=Path,
     )
+    parser.add_argument(
+        "--event-type",
+        default=[],
+        help="event types to output",
+        action="extend",
+        nargs="+",
+    )
     parser.set_defaults(func=lambda x: main_help(parser, x))
 
     subparsers = parser.add_subparsers()
@@ -185,23 +192,9 @@ def main():
     analyze_parser.set_defaults(func=main_analyze_cloudinit)
 
     analyze_parser = subparsers.add_parser("analyze-journal")
-    analyze_parser.add_argument(
-        "--event-type",
-        default=[],
-        help="event types to output",
-        action="extend",
-        nargs="+",
-    )
     analyze_parser.set_defaults(func=main_analyze_journal)
 
     analyze_parser = subparsers.add_parser("analyze")
-    analyze_parser.add_argument(
-        "--event-type",
-        default=[],
-        help="event types to output",
-        action="extend",
-        nargs="+",
-    )
     analyze_parser.set_defaults(func=main_analyze)
 
     graph_parser = subparsers.add_parser("graph")
