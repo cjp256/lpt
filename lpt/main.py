@@ -1,12 +1,19 @@
 import argparse
+import dataclasses
+import datetime
 import json
 import logging
 import sys
+import tempfile
 from pathlib import Path
 from typing import List, Optional
 
+import paramiko
+
+from .analyze import analyze_events
 from .cloudinit import CloudInit
-from .event import Event
+from .clouds.azure import Azure
+from .clouds.keys import generate_ssh_keys
 from .graph import ServiceGraph
 from .journal import Journal
 from .ssh import SSH
@@ -15,32 +22,57 @@ from .systemd import Systemctl, Systemd
 logger = logging.getLogger("lpt")
 
 
+@dataclasses.dataclass
+class SshManager:
+    proxy_host: Optional[str] = None
+    proxy_user: Optional[str] = None
+
+    def connect(self, *, host: str, user: str) -> Optional[SSH]:
+        if not host:
+            return None
+
+        while True:
+            try:
+                ssh = SSH(
+                    host=host,
+                    user=user,
+                    proxy_host=self.proxy_host,
+                    proxy_user=self.proxy_user,
+                )
+                ssh.connect()
+                break
+            except paramiko.ssh_exception.AuthenticationException as exc:
+                logger.debug("failed auth: %r", exc)
+                continue
+            except paramiko.ssh_exception.NoValidConnectionsError as exc:
+                logger.debug("failed to connect: %r", exc)
+                continue
+            except paramiko.ssh_exception.SSHException as exc:
+                logger.debug("failed to connect: %r", exc)
+                continue
+
+        return ssh
+
+
 def _init_logger(log_level: int):
+    logging.basicConfig(level=log_level)
     logger.setLevel(log_level)
     formatter = logging.Formatter(
-        "%(created)f:%(levelname)s:%(name)s:%(module)s:%(message)s"
+        fmt="%(asctime)s.%(msecs)03d|%(levelname)s|%(name)s:%(module)s:%(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
     handler = logging.StreamHandler(sys.stderr)
     handler.setLevel(log_level)
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
-
-def print_analysis(events: List[Event], event_types: List[str]) -> None:
-    events = sorted(events, key=lambda x: x.timestamp_realtime)
-    if event_types:
-        events = [e for e in events if e.label in event_types]
-
-    event_dicts = [e.as_dict() for e in events]
-    warnings = [e for e in event_dicts if e["label"].startswith("WARNING")]
-    errors = [e for e in event_dicts if e["label"].startswith("ERROR")]
-
-    output = {
-        "events": event_dicts,
-        "warnings": warnings,
-        "errors": errors,
-    }
-    print(json.dumps(output, indent=4))
+    # Cleanup logging
+    logging.getLogger("azure").setLevel(logging.WARNING)
+    logging.getLogger("paramiko").setLevel(logging.WARNING)
+    logging.getLogger("paramiko").propagate = False
+    logging.getLogger("urllib3").handlers = []
+    logging.getLogger("urllib3").addHandler(handler)
+    logging.getLogger("urllib3").propagate = False
 
 
 def load_cloudinit(args, ssh: Optional[SSH]) -> List[CloudInit]:
@@ -57,42 +89,43 @@ def load_journal(args, ssh: Optional[SSH]) -> List[Journal]:
     return Journal.load(journal_path=args.journal_path, output_dir=args.output)
 
 
-def analyze_events(
-    args, journals: List[Journal], cloudinits: List[CloudInit]
-) -> List[Event]:
-    events: List[Event] = []
+def main_analyze(args, ssh_mgr: SshManager) -> None:
+    ssh = ssh_mgr.connect(host=args.ssh_host, user=args.ssh_user)
 
-    if args.boot:
-        cloudinits = cloudinits[-1:]
-        journals = journals[-1:]
-
-    for journal in journals:
-        events.extend(journal.get_events_of_interest())
-
-    for cloudinit in cloudinits:
-        events.extend(cloudinit.get_events_of_interest())
-
-    print_analysis(events, args.event_type)
-    return events
-
-
-def main_analyze(args, ssh: Optional[SSH]) -> None:
     cloudinits = load_cloudinit(args, ssh)
     journals = load_journal(args, ssh)
-    analyze_events(args, journals, cloudinits)
+    event_data = analyze_events(
+        journals=journals,
+        cloudinits=cloudinits,
+        boot=args.boot,
+        event_types=args.event_type,
+    )
+    print(json.dumps(vars(event_data), indent=4))
 
 
-def main_analyze_cloudinit(args, ssh: Optional[SSH]) -> None:
+def main_analyze_cloudinit(args, ssh_mgr: SshManager) -> None:
+    ssh = ssh_mgr.connect(host=args.ssh_host, user=args.ssh_user)
+
     cloudinits = load_cloudinit(args, ssh)
-    analyze_events(args, [], cloudinits)
+    event_data = analyze_events(
+        journals=[], cloudinits=cloudinits, boot=args.boot, event_types=args.event_type
+    )
+    print(json.dumps(vars(event_data), indent=4))
 
 
-def main_analyze_journal(args, ssh: Optional[SSH]) -> None:
+def main_analyze_journal(args, ssh_mgr: SshManager) -> None:
+    ssh = ssh_mgr.connect(host=args.ssh_host, user=args.ssh_user)
+
     journals = load_journal(args, ssh)
-    analyze_events(args, journals, [])
+    event_data = analyze_events(
+        journals=journals, cloudinits=[], boot=args.boot, event_types=args.event_type
+    )
+    print(json.dumps(vars(event_data), indent=4))
 
 
-def main_graph(args, ssh: Optional[SSH]) -> None:
+def main_graph(args, ssh_mgr: SshManager) -> None:
+    ssh = ssh_mgr.connect(host=args.ssh_host, user=args.ssh_user)
+
     cloudinits = load_cloudinit(args, ssh)
     if cloudinits:
         cloudinit = cloudinits[-1]
@@ -123,19 +156,56 @@ def main_help(parser, _):
     parser.print_help()
 
 
-def configure_ssh(args) -> Optional[SSH]:
-    if not args.ssh_host:
-        return None
+def main_launch_azure_instance(args, ssh_mgr: SshManager) -> None:
+    name = datetime.datetime.utcnow().strftime("t%m%d%Y%H%M%S%f")
+    rg_name = args.rg
+    vm_name = f"ephemeral-{name}"
 
-    ssh = SSH(
-        host=args.ssh_host,
-        user=args.ssh_user,
-        proxy_host=args.ssh_proxy_host,
-        proxy_user=args.ssh_proxy_user,
-    )
-    ssh.connect()
+    azure = Azure()
+    rg = azure.rg_create(rg_name, location=args.location)
+    logger.debug("RG created: %r", vars(rg))
 
-    return ssh
+    if args.ssh_public_key:
+        pub_key = args.ssh_public_key
+        priv_key = None
+    else:
+        key_dir = Path(tempfile.TemporaryDirectory().name)
+        pub_key, priv_key = generate_ssh_keys(key_dir, "testkey")
+
+    for image in args.images:
+        if "arm64" in image:
+            vm_size = "Standard_D4plds_v5"
+        else:
+            vm_size = "Standard_DS1_v2"
+
+        vm, public_ips = azure.create_standard_vm(
+            image=image,
+            name=vm_name,
+            num_nics=1,
+            rg=rg,
+            vm_size=vm_size,
+            ssh_pubkey_path=pub_key,
+            admin_username=args.admin_username,
+            admin_password=None,
+            restrict_ssh_ip=args.restrict_ssh_ip,
+        )
+
+        logger.info(
+            "Created: %r %r %r", vars(rg), vars(vm), [p.ip_address for p in public_ips]
+        )
+
+        ssh = ssh_mgr.connect(host=public_ips[0].ip_address, user=args.admin_username)
+        logger.info("Connected: %s@%s", args.admin_username, public_ips[0].ip_address)
+
+        cloudinits = load_cloudinit(args, ssh)
+        journals = load_journal(args, ssh)
+        event_data = analyze_events(
+            journals=journals,
+            cloudinits=cloudinits,
+            boot=True,
+            event_types=args.event_type,
+        )
+        print(json.dumps(vars(event_data), indent=4))
 
 
 def main():
@@ -186,8 +256,6 @@ def main():
     for opt in [
         "--debug",
         "--output",
-        "--ssh-host",
-        "--ssh-user",
         "--ssh-proxy-host",
         "--ssh-proxy-user",
     ]:
@@ -197,17 +265,30 @@ def main():
 
     analyze_parser = subparsers.add_parser("analyze")
     analyze_parser.set_defaults(func=main_analyze)
-    for opt in ["--boot", "--cloudinit-log-path", "--event-type", "--journal-path"]:
+    for opt in [
+        "--boot",
+        "--cloudinit-log-path",
+        "--event-type",
+        "--journal-path",
+        "--ssh-host",
+        "--ssh-user",
+    ]:
         analyze_parser.add_argument(opt, **all_arguments[opt])
 
     analyze_parser = subparsers.add_parser("analyze-cloudinit")
     analyze_parser.set_defaults(func=main_analyze_cloudinit)
-    for opt in ["--boot", "--cloudinit-log-path", "--event-type"]:
+    for opt in [
+        "--boot",
+        "--cloudinit-log-path",
+        "--event-type",
+        "--ssh-host",
+        "--ssh-user",
+    ]:
         analyze_parser.add_argument(opt, **all_arguments[opt])
 
     analyze_parser = subparsers.add_parser("analyze-journal")
     analyze_parser.set_defaults(func=main_analyze_journal)
-    for opt in ["--boot", "--event-type", "--journal-path"]:
+    for opt in ["--boot", "--event-type", "--journal-path", "--ssh-host", "--ssh-user"]:
         analyze_parser.add_argument(opt, **all_arguments[opt])
 
     graph_parser = subparsers.add_parser("graph")
@@ -226,6 +307,42 @@ def main():
         default="sshd.service",
     )
 
+    launch_parser = subparsers.add_parser("launch-azure-instance")
+    launch_parser.set_defaults(func=main_launch_azure_instance)
+    for opt in ["--boot", "--event-type"]:
+        launch_parser.add_argument(opt, **all_arguments[opt])
+    launch_parser.add_argument(
+        "images",
+        metavar="image",
+        help="os image to launch",
+        nargs="+",
+    )
+    launch_parser.add_argument(
+        "--rg",
+        help="resource group name",
+        required=True,
+    )
+    launch_parser.add_argument(
+        "--location",
+        help="location to launch in",
+        default="eastus",
+    )
+    launch_parser.add_argument(
+        "--admin-username",
+        help="admin username",
+        default="testadmin",
+    )
+    launch_parser.add_argument(
+        "--restrict-ssh-ip",
+        help="secure NSG with specific IP for SSH",
+    )
+    launch_parser.add_argument(
+        "--ssh-public-key",
+        help="public key",
+        type=Path,
+    )
+    launch_parser.set_defaults(func=main_launch_azure_instance)
+
     args = parser.parse_args()
 
     if args.debug:
@@ -234,10 +351,9 @@ def main():
         _init_logger(logging.INFO)
 
     args.output.mkdir(exist_ok=True, parents=True)
-    print(args)
-    ssh = configure_ssh(args)
 
-    args.func(args, ssh)
+    ssh_mgr = SshManager(proxy_host=args.ssh_proxy_host, proxy_user=args.ssh_proxy_user)
+    args.func(args, ssh_mgr)
 
 
 if __name__ == "__main__":

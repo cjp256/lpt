@@ -45,6 +45,8 @@ class JournalEntry:
             break
 
         message = entry["MESSAGE"]
+        if isinstance(message, list):
+            message = repr(list)
 
         assert timestamp_monotonic is not None, f"no monotonic timestamp? {entry}"
         assert timestamp_realtime is not None, f"no realtime timestamp? {entry}"
@@ -96,7 +98,13 @@ class Journal:
             cmd = ["journalctl", "-o", "json", "--no-pager"]
             if journal_path:
                 cmd.extend(["-D", journal_path.as_posix()])
-            proc = run(cmd, capture_output=True, check=True)
+            try:
+                proc = run(cmd, capture_output=True, check=True)
+            except subprocess.CalledProcessError as exc:
+                logger.debug("falling back to trying journalctl with sudo: %r", exc)
+                cmd.insert(0, "sudo")
+                proc = run(cmd, capture_output=True, check=True)
+
             data = proc.stdout
 
         journal_log = output_dir / "journal.log"
@@ -111,6 +119,7 @@ class Journal:
 
         entries = [JournalEntry.parse(json.loads(log)) for log in logs.splitlines()]
         for entry in entries:
+            logger.debug("entry=%r", entry)
             if entry.message.startswith("Linux version") and boot_entries:
                 boot_journal = cls(entries=boot_entries)
                 journals.append(boot_journal)

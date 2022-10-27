@@ -2,6 +2,7 @@ import dataclasses
 import logging
 import shlex
 import subprocess
+import time
 from pathlib import Path
 from typing import List, Optional, Union
 
@@ -19,8 +20,14 @@ class SSH:
     proxy_host: Optional[str] = None
     proxy_user: Optional[str] = None
     proxy_sock = None
+    private_key: Optional[Path] = None
 
     def connect(self) -> None:
+        if self.private_key:
+            pkey = paramiko.RSAKey.from_private_key_file(str(self.private_key))
+        else:
+            pkey = None
+
         if not self.client:
             self.client = paramiko.SSHClient()
 
@@ -45,6 +52,7 @@ class SSH:
             if not transport:
                 raise RuntimeError("unable to open transport")
 
+            logger.debug("opening transport channel to %s...", self.host)
             self.proxy_sock = transport.open_channel(
                 "direct-tcpip", (self.host, 22), ("", 0)
             )
@@ -54,16 +62,41 @@ class SSH:
             "connecting to ssh server (host=%s, user=%s)", self.host, self.user
         )
         self.client.connect(
-            hostname=self.host, username=self.user, sock=self.proxy_sock
+            hostname=self.host,
+            username=self.user,
+            sock=self.proxy_sock,
+            pkey=pkey,
         )
         logger.debug("connected to ssh server (host=%s, user=%s)", self.host, self.user)
 
-    def fetch(self, remote_path: Path, local_path: Path, as_sudo: bool = False) -> None:
-        cmd = ["cat", str(remote_path)]
-        if as_sudo:
-            cmd.insert(0, "sudo")
+    def connect_with_retries(self, attempts: int = 300, sleep: float = 1.0) -> None:
+        while attempts > 0:
+            attempts -= 1
+            try:
+                self.connect()
+                return
+            except paramiko.ssh_exception.AuthenticationException as exc:
+                logger.debug("failed auth: %r", exc)
+            except paramiko.ssh_exception.NoValidConnectionsError as exc:
+                logger.debug("failed to connect: %r", exc)
+            except paramiko.ssh_exception.SSHException as exc:
+                logger.debug("failed to connect: %r", exc)
 
-        proc = self.run(cmd, capture_output=True, check=True)
+            time.sleep(sleep)
+
+    def fetch(self, remote_path: Path, local_path: Path) -> None:
+        cmd = ["cat", str(remote_path)]
+
+        proc = self.run(cmd, capture_output=True, check=False)
+        if proc.returncode != 0:
+            logger.debug("falling back to fetching %r with sudo...", remote_path)
+            cmd.insert(0, "sudo")
+            try:
+                proc = self.run(cmd, capture_output=True, check=True)
+            except subprocess.CalledProcessError as exc:
+                logger.debug("failed to fetch file %r: %r", remote_path, exc)
+                raise FileNotFoundError(2, "No such file or directory") from exc
+
         assert isinstance(proc.stdout, bytes)
         local_path.write_bytes(proc.stdout)
 
@@ -124,3 +157,27 @@ class SSH:
             stderr_out = stderr_out.decode(encoding="utf-8", errors="strict")
 
         return subprocess.CompletedProcess(cmd, returncode, stdout_out, stderr_out)
+
+    def wait_for_system_ready(self, *, attempts: int = 300, sleep: float = 1.0) -> str:
+        cmd = ["systemctl", "is-system-running"]
+
+        logger.debug("Waiting for system ready...")
+        for _ in range(attempts):
+            try:
+                proc = self.run(cmd, capture_output=True, check=True, text=True)
+                status = proc.stdout.strip()
+            except subprocess.CalledProcessError:
+                status = ""
+
+            if status == "degraded":
+                logger.warning("System ready, but degraded")
+                return status
+
+            if status == "running":
+                logger.debug("System ready")
+                return status
+
+            time.sleep(sleep)
+
+        logger.error("Timed out waiting for system ready: %r", status)
+        return status

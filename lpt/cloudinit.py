@@ -193,7 +193,10 @@ class CloudInit:
     ) -> List["CloudInit"]:
         remote_path = Path("/var/log/cloud-init.log")
         local_path = output_dir / "cloud-init.log"
-        ssh.fetch(remote_path, local_path)
+        try:
+            ssh.fetch(remote_path, local_path)
+        except FileNotFoundError:
+            return []
         return cls.load(local_path, output_dir=output_dir)
 
     @classmethod
