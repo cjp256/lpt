@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import subprocess
+import warnings
 from pathlib import Path
 
 import pytest
@@ -22,6 +23,10 @@ if os.environ.get("LPT_TEST_AZURE_IMAGES") != "1":
     pytest.skip("skipping azure integration tests", allow_module_level=True)
 
 TEST_USERNAME = "testuser"
+
+
+def warn(warning: str) -> None:
+    warnings.warn(UserWarning(warning))
 
 
 @pytest.fixture(autouse=True)
@@ -256,7 +261,15 @@ def test_azure_instances(
             for e in event_data.events
             if e["label"] == label and e["source"] == "journal"
         ]
-        assert len(events) > 0, f"missing events with label={label}"
+
+        # Warn if kernel boot is missing, otherwise assert events are present.
+        if len(events) == 0 and label == "KERNEL_BOOT":
+            warn(f"missing events with for image={image} (label={label})")
+        else:
+            assert (
+                len(events) > 0
+            ), f"missing events with for image={image} (label={label})"
 
     # Verify system status is good.
-    assert system_status == "running"
+    if system_status != "running":
+        warn(f"system degraded for image={image} (status={system_status})")

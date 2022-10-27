@@ -161,23 +161,21 @@ class SSH:
     def wait_for_system_ready(self, *, attempts: int = 300, sleep: float = 1.0) -> str:
         cmd = ["systemctl", "is-system-running"]
 
-        logger.debug("Waiting for system ready...")
+        logger.debug("waiting for system ready...")
         for _ in range(attempts):
-            try:
-                proc = self.run(cmd, capture_output=True, check=True, text=True)
-                status = proc.stdout.strip()
-            except subprocess.CalledProcessError:
-                status = ""
+            proc = self.run(cmd, capture_output=True, check=False, text=True)
+            status = proc.stdout.strip()
 
             if status == "degraded":
-                logger.warning("System ready, but degraded")
+                logger.warning("system ready, but degraded")
                 return status
 
             if status == "running":
-                logger.debug("System ready")
+                logger.debug("system ready")
                 return status
 
+            logger.debug("system status: %s (rc=%d)", status, proc.returncode)
             time.sleep(sleep)
 
-        logger.error("Timed out waiting for system ready: %r", status)
+        logger.error("timed out waiting for system ready: %r", status)
         return status
