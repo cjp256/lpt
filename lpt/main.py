@@ -123,7 +123,6 @@ def main_graph(args, ssh_mgr: SshManager) -> None:
         filter_services=sorted(args.filter_service),
         filter_conditional_result_no=args.filter_conditional_result_no,
         systemd=systemd,
-        units=systemd.units,
         frames=frames,
     ).generate_digraph()
 

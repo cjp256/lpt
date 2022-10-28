@@ -288,3 +288,16 @@ def test_azure_instances(
     # Verify system status is good.
     if system_status != "running":
         warn(f"system degraded for image={image} (status={system_status})")
+
+    ssh_service = "ssh.service" if "ssh.service" in systemd.units else "sshd.service"
+    digraph = ServiceGraph(
+        ssh_service,
+        filter_services=["systemd-journald.socket"],
+        filter_conditional_result_no=True,
+        systemd=systemd,
+        frames=frames,
+    ).generate_digraph()
+
+    out = output_dir / "ssh-service-graph.dot"
+    out.write_text(digraph)
+

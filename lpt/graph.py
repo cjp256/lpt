@@ -1,6 +1,6 @@
 import dataclasses
 import logging
-from typing import Dict, List, Optional, Set, Tuple
+from typing import List, Optional, Set, Tuple
 
 from .cloudinit import CloudInitFrame
 from .systemd import Systemd, SystemdUnit
@@ -18,7 +18,6 @@ class ServiceGraph:
         filter_services: List[str],
         filter_conditional_result_no: bool = False,
         filter_inactive: bool = True,
-        units: Optional[Dict[str, SystemdUnit]] = None,
         frames: Optional[List[CloudInitFrame]] = None,
     ) -> None:
 
@@ -28,7 +27,6 @@ class ServiceGraph:
         self.filter_inactive = filter_inactive
 
         self.systemd = systemd
-        self.units: Dict[str, SystemdUnit] = units if units else {}
         self.frames: List[CloudInitFrame] = frames if frames else []
 
     def get_frame_label(self, frame: CloudInitFrame) -> str:
@@ -113,13 +111,13 @@ class ServiceGraph:
 
             seen.add(service_name)
 
-            service = self.units.get(service_name)
+            service = self.systemd.units.get(service_name)
             if service is None:
-                logger.debug("service not found: %r", self.units)
+                logger.debug("service not found: %r", self.systemd.units)
                 return
 
             for name in service.after:
-                dependency = self.units.get(name)
+                dependency = self.systemd.units.get(name)
                 if dependency is None:
                     continue
 
@@ -188,7 +186,7 @@ class ServiceGraph:
             "cloud-config.service": "modules-config",
             "cloud-final.service": "modules-final",
         }.items():
-            service = self.units[service_name]
+            service = self.systemd.units[service_name]
             if service not in graphed_units:
                 continue
             service_label = self.get_unit_label(service)
@@ -221,7 +219,7 @@ class ServiceGraph:
                 "  }",
             ]
 
-        start_unit = self.units[self.service_name]
+        start_unit = self.systemd.units[self.service_name]
         start_unit_label = self.get_unit_label(start_unit)
         lines.extend([f'  "{start_unit_label}" [shape=Mdiamond];', "}"])
         digraph = "\n".join(lines)
