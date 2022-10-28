@@ -458,7 +458,7 @@ class Systemd:
         log = output_dir / "systemd-units.json"
         log.write_text(json.dumps(encodable_units, indent=4))
 
-        show_output = Systemctl.show()
+        show_output = Systemctl.show(run=run)
         logging.debug("read systemd show: %r", show_output)
         properties = Systemctl.parse_show(show_output)
         logging.debug("parsed systemd show: %r", show_output)

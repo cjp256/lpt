@@ -54,7 +54,7 @@ def analyze_events(
     for event in events:
         assert isinstance(event.timestamp_realtime, datetime.datetime), repr(event)
 
-    events = sorted(events, key=lambda x: x.timestamp_realtime)
+    events = sorted(events, key=lambda x: x.timestamp_monotonic)
     if event_types:
         events = [e for e in events if e.label in event_types]
 

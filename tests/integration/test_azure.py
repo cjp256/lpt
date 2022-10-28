@@ -246,8 +246,11 @@ def _verify_boot(*, boot_num: int, image: str, ssh: SSH, vm_name: str):
         event_types=None,
     )
 
-    out = output_dir / "event_data.json"
-    out.write_text(json.dumps(vars(event_data), indent=4))
+    out = output_dir / "events.json"
+    out.write_text(json.dumps(event_data.events, indent=4))
+
+    out = output_dir / "warnings.json"
+    out.write_text(json.dumps(event_data.warnings, indent=4))
 
     # Raise warnings to tester.
     for warning in event_data.warnings:
