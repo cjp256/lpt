@@ -85,10 +85,14 @@ class SystemdUnitList:
         parts = line.strip().split()
         logger.debug("parsing legacy line: %r", parts)
         try:
+            if parts[0] == "UNIT":
+                raise ValueError(f"skipping header: {parts}")
+
             unit = parts[0]
             if unit == "●":
                 parts = parts[1:]
                 unit = parts[0]
+
             load = parts[1]
             active = parts[2]
             sub = parts[3]
@@ -293,7 +297,7 @@ class Systemctl:
         run=subprocess.run,
     ) -> str:
         cmd = ["systemctl", "show"]
-        if service_name:
+        if service_name is not None:
             cmd.extend(["--", service_name])
         try:
             logger.debug("Executing: %r", cmd)
@@ -360,13 +364,23 @@ class Systemctl:
                 "failed to parse systemctl as json, falling back to legacy mode"
             )
 
+        return cls.parse_list_units_legacy(list_units_output)
+
+    @classmethod
+    def parse_list_units_legacy(
+        cls, list_units_output: str
+    ) -> Dict[str, SystemdUnitList]:
+        """Fall back to parsing non-json output."""
         units = {}
 
+        # First line is header skip it.
         for line in list_units_output.strip().splitlines():
             line = line.strip()
+
             # A blank line is before the legend, stop here.
             if not line:
                 break
+
             try:
                 unit = SystemdUnitList.parse_legacy_line(line)
             except ValueError:
@@ -393,7 +407,7 @@ class Systemd:
             severity = EventSeverity.INFO
 
         return SystemdSystemEvent(
-            label="SYSTEMD_UNIT",
+            label="SYSTEMD_SYSTEM",
             source="systemd",
             timestamp_monotonic=self.finish_timestamp_monotonic,
             timestamp_realtime=self.finish_timestamp,
@@ -430,6 +444,7 @@ class Systemd:
         list_units = Systemctl.parse_list_units(list_units_output)
 
         for unit_name, list_unit in list_units.items():
+            logger.debug("querying for service: %s", unit_name)
             show_output = Systemctl.show(unit_name, run=run)
             show_properties = Systemctl.parse_show(show_output)
 
@@ -444,8 +459,13 @@ class Systemd:
         log.write_text(json.dumps(encodable_units, indent=4))
 
         show_output = Systemctl.show()
+        logging.debug("read systemd show: %r", show_output)
         properties = Systemctl.parse_show(show_output)
-        return cls.parse(properties, units=units)
+        logging.debug("parsed systemd show: %r", show_output)
+
+        systemd = cls.parse(properties, units=units)
+        logging.debug("systemd: %r", systemd)
+        return systemd
 
     @classmethod
     def parse(cls, properties: dict, *, units=Dict[str, SystemdUnit]) -> "Systemd":
