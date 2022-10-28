@@ -186,9 +186,10 @@ class ServiceGraph:
             "cloud-config.service": "modules-config",
             "cloud-final.service": "modules-final",
         }.items():
-            service = self.systemd.units[service_name]
-            if service not in graphed_units:
+            service = self.systemd.units.get(service_name)
+            if service is None or service not in graphed_units:
                 continue
+
             service_label = self.get_unit_label(service)
 
             edges = []

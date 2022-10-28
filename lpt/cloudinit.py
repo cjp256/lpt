@@ -353,7 +353,10 @@ class CloudInit:
                     entry.timestamp_monotonic - frame.timestamp_monotonic_start
                 )
                 frame.result = entry.result
-                if frame.result == "SUCCESS":
+                if (
+                    frame.result == "SUCCESS"
+                    or frame.module == "azure-ds/load_azure_ds_dir"
+                ):
                     frame.severity = EventSeverity.INFO
 
         return frames

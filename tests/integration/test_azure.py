@@ -14,8 +14,9 @@ import whatismyip  # type: ignore
 from lpt.analyze import analyze_events
 from lpt.cloudinit import CloudInit
 from lpt.clouds.azure import Azure
+from lpt.graph import ServiceGraph
 from lpt.journal import Journal
-from lpt.ssh import SSH
+from lpt.ssh import SSH, SystemReadyTimeout
 from lpt.systemd import Systemd
 
 logger = logging.getLogger(__name__)
@@ -209,13 +210,20 @@ def test_azure_instances(
     ssh.connect_with_retries()
     logger.info("Connected: %s@%s", TEST_USERNAME, public_ips[0].ip_address)
 
+    for boot_num in range(0, 2):
+        _verify_boot(boot_num=boot_num, image=image, ssh=ssh, vm_name=vm_name)
+
+
+def _verify_boot(*, boot_num: int, image: str, ssh: SSH, vm_name: str):
     try:
         system_status = ssh.wait_for_system_ready()
-    except ssh.SystemReadyTimeout as error:
+    except SystemReadyTimeout as error:
         system_status = error.status
         warn(f"Systemd timed out for image={image} (status={system_status})")
 
-    output_dir = Path("/tmp", "lpt-tests", f"{image.replace(':', '_')}-{vm_name}")
+    output_dir = Path(
+        "/tmp", "lpt-tests", f"{image.replace(':', '_')}-{vm_name}", f"boot{boot_num}"
+    )
     output_dir.mkdir(exist_ok=True, parents=True)
 
     cloudinits = CloudInit.load_remote(ssh, output_dir=output_dir)
@@ -255,7 +263,9 @@ def test_azure_instances(
                 and e["source"] == "cloudinit"
                 and e["module"] == module
             ]
-            assert len(events) > 0, f"missing events with label={label}"
+            assert (
+                len(events) > 0
+            ), f"missing cloudinit events for image={image} (module={module})"
 
     # Verify sample of journal events.
     for label in ["KERNEL_BOOT", "SYSTEMD_STARTED", "SSH_ACCEPTED_CONNECTION"]:
@@ -283,21 +293,46 @@ def test_azure_instances(
             and e["unit"] == unit
         ]
 
-        assert len(events) > 0, f"missing events with for image={image} (unit={unit})"
+        assert (
+            len(events) > 0
+        ), f"missing systemd unit events with for image={image} (unit={unit})"
+
+    # Verify sample of systemd events.
+    events = [
+        e
+        for e in event_data.events
+        if e["label"] == "SYSTEMD_SYSTEM" and e["source"] == "systemd"
+    ]
+    assert len(events) > 0, f"missing systemd system events for image={image})"
 
     # Verify system status is good.
     if system_status != "running":
         warn(f"system degraded for image={image} (status={system_status})")
 
-    ssh_service = "ssh.service" if "ssh.service" in systemd.units else "sshd.service"
-    digraph = ServiceGraph(
-        ssh_service,
-        filter_services=["systemd-journald.socket"],
-        filter_conditional_result_no=True,
-        systemd=systemd,
-        frames=frames,
-    ).generate_digraph()
+    if cloudinits:
+        frames = cloudinits[-1].get_frames()
+    else:
+        frames = []
 
-    out = output_dir / "ssh-service-graph.dot"
-    out.write_text(digraph)
+    # Graph a sample of services/targets.
+    for name in [
+        "cloud-final.target",
+        "ssh.service",
+        "sshd.service",
+        "network.target",
+        "multi-user.target",
+    ]:
+        service = systemd.units.get(name)
+        if not service or not service.is_active():
+            continue
 
+        digraph = ServiceGraph(
+            name,
+            filter_services=["systemd-journald.socket"],
+            filter_conditional_result_no=True,
+            systemd=systemd,
+            frames=frames,
+        ).generate_digraph()
+
+        out = output_dir / f"graph-{name}.dot"
+        out.write_text(digraph)
