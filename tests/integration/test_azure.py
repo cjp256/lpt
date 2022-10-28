@@ -16,6 +16,7 @@ from lpt.cloudinit import CloudInit
 from lpt.clouds.azure import Azure
 from lpt.journal import Journal
 from lpt.ssh import SSH
+from lpt.systemd import Systemd
 
 logger = logging.getLogger(__name__)
 
@@ -226,9 +227,13 @@ def test_azure_instances(
     journals = Journal.load_remote(ssh, output_dir=output_dir)
     assert len(journals) > 0
 
+    systemd = Systemd.load_remote(ssh, output_dir=output_dir)
+    assert systemd
+
     event_data = analyze_events(
         journals=journals,
         cloudinits=cloudinits,
+        systemd=systemd,
         boot=True,
         event_types=None,
     )
@@ -267,6 +272,18 @@ def test_azure_instances(
             assert (
                 len(events) > 0
             ), f"missing events with for image={image} (label={label})"
+
+    # Verify sample of systemd events.
+    for unit in ["local-fs.target", "basic.target"]:
+        events = [
+            e
+            for e in event_data.events
+            if e["label"] == "SYSTEMD_UNIT"
+            and e["source"] == "systemd"
+            and e["unit"] == unit
+        ]
+
+        assert len(events) > 0, f"missing events with for image={image} (unit={unit})"
 
     # Verify system status is good.
     if system_status != "running":

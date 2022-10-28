@@ -237,6 +237,9 @@ class Azure:
         ssh_pubkey_path: Path,
         vm_size: str,
     ):
+        """Create a basic Linux VM with SSH access."""
+        assert num_nics >= 1, "at least one nic is required"
+
         nic_name = name + "-nic"
         nsg_name = name + "-nsg"
         public_ip_name = name + "-ip"

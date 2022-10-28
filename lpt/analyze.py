@@ -6,6 +6,7 @@ from typing import List, Optional
 from .cloudinit import CloudInit
 from .event import Event
 from .journal import Journal
+from .systemd import Systemd
 
 logger = logging.getLogger("lpt.analyze")
 
@@ -20,6 +21,7 @@ def analyze_events(
     *,
     journals: List[Journal],
     cloudinits: List[CloudInit],
+    systemd: Optional[Systemd],
     boot: bool = True,
     event_types: Optional[List[str]] = None,
 ) -> EventData:
@@ -34,6 +36,9 @@ def analyze_events(
 
     for cloudinit in cloudinits:
         events.extend(cloudinit.get_events_of_interest())
+
+    if systemd:
+        events.extend(systemd.get_events_of_interest())
 
     if not cloudinits:
         events.append(

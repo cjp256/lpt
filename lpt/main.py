@@ -3,12 +3,9 @@ import dataclasses
 import datetime
 import json
 import logging
-import sys
 import tempfile
 from pathlib import Path
 from typing import List, Optional
-
-import paramiko
 
 from .analyze import analyze_events
 from .cloudinit import CloudInit
@@ -16,6 +13,7 @@ from .clouds.azure import Azure
 from .clouds.keys import generate_ssh_keys
 from .graph import ServiceGraph
 from .journal import Journal
+from .logging import configure_logging
 from .ssh import SSH
 from .systemd import Systemctl, Systemd
 
@@ -31,48 +29,15 @@ class SshManager:
         if not host:
             return None
 
-        while True:
-            try:
-                ssh = SSH(
-                    host=host,
-                    user=user,
-                    proxy_host=self.proxy_host,
-                    proxy_user=self.proxy_user,
-                )
-                ssh.connect()
-                break
-            except paramiko.ssh_exception.AuthenticationException as exc:
-                logger.debug("failed auth: %r", exc)
-                continue
-            except paramiko.ssh_exception.NoValidConnectionsError as exc:
-                logger.debug("failed to connect: %r", exc)
-                continue
-            except paramiko.ssh_exception.SSHException as exc:
-                logger.debug("failed to connect: %r", exc)
-                continue
+        ssh = SSH(
+            host=host,
+            user=user,
+            proxy_host=self.proxy_host,
+            proxy_user=self.proxy_user,
+        )
+        ssh.connect_with_retries()
 
         return ssh
-
-
-def _init_logger(log_level: int):
-    logging.basicConfig(level=log_level)
-    logger.setLevel(log_level)
-    formatter = logging.Formatter(
-        fmt="%(asctime)s.%(msecs)03d|%(levelname)s|%(name)s:%(module)s:%(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-    handler = logging.StreamHandler(sys.stderr)
-    handler.setLevel(log_level)
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-
-    # Cleanup logging
-    logging.getLogger("azure").setLevel(logging.WARNING)
-    logging.getLogger("paramiko").setLevel(logging.WARNING)
-    logging.getLogger("paramiko").propagate = False
-    logging.getLogger("urllib3").handlers = []
-    logging.getLogger("urllib3").addHandler(handler)
-    logging.getLogger("urllib3").propagate = False
 
 
 def load_cloudinit(args, ssh: Optional[SSH]) -> List[CloudInit]:
@@ -89,14 +54,24 @@ def load_journal(args, ssh: Optional[SSH]) -> List[Journal]:
     return Journal.load(journal_path=args.journal_path, output_dir=args.output)
 
 
+def load_systemd(args, ssh: Optional[SSH]) -> Systemd:
+    if ssh:
+        return Systemd.load_remote(ssh, output_dir=args.output)
+
+    return Systemd.load(output_dir=args.output)
+
+
 def main_analyze(args, ssh_mgr: SshManager) -> None:
     ssh = ssh_mgr.connect(host=args.ssh_host, user=args.ssh_user)
 
     cloudinits = load_cloudinit(args, ssh)
     journals = load_journal(args, ssh)
+    systemd = load_systemd(args, ssh)
+
     event_data = analyze_events(
         journals=journals,
         cloudinits=cloudinits,
+        systemd=systemd,
         boot=args.boot,
         event_types=args.event_type,
     )
@@ -108,7 +83,11 @@ def main_analyze_cloudinit(args, ssh_mgr: SshManager) -> None:
 
     cloudinits = load_cloudinit(args, ssh)
     event_data = analyze_events(
-        journals=[], cloudinits=cloudinits, boot=args.boot, event_types=args.event_type
+        journals=[],
+        cloudinits=cloudinits,
+        systemd=None,
+        boot=args.boot,
+        event_types=args.event_type,
     )
     print(json.dumps(vars(event_data), indent=4))
 
@@ -118,7 +97,11 @@ def main_analyze_journal(args, ssh_mgr: SshManager) -> None:
 
     journals = load_journal(args, ssh)
     event_data = analyze_events(
-        journals=journals, cloudinits=[], boot=args.boot, event_types=args.event_type
+        journals=journals,
+        cloudinits=[],
+        systemd=None,
+        boot=args.boot,
+        event_types=args.event_type,
     )
     print(json.dumps(vars(event_data), indent=4))
 
@@ -199,9 +182,11 @@ def main_launch_azure_instance(args, ssh_mgr: SshManager) -> None:
 
         cloudinits = load_cloudinit(args, ssh)
         journals = load_journal(args, ssh)
+        systemd = load_systemd(args, ssh)
         event_data = analyze_events(
             journals=journals,
             cloudinits=cloudinits,
+            systemd=systemd,
             boot=True,
             event_types=args.event_type,
         )
@@ -297,6 +282,8 @@ def main():
         "--cloudinit-log-path",
         "--filter-conditional-result-no",
         "--filter-service",
+        "--ssh-host",
+        "--ssh-user",
     ]:
         graph_parser.add_argument(opt, **all_arguments[opt])
 
@@ -346,9 +333,9 @@ def main():
     args = parser.parse_args()
 
     if args.debug:
-        _init_logger(logging.DEBUG)
+        configure_logging(logging.DEBUG)
     else:
-        _init_logger(logging.INFO)
+        configure_logging(logging.INFO)
 
     args.output.mkdir(exist_ok=True, parents=True)
 

@@ -4,30 +4,40 @@ import json
 import logging
 import subprocess
 from pathlib import Path
-from typing import Dict, FrozenSet, Optional
+from typing import Dict, FrozenSet, List, Optional
 
+from .event import Event
 from .ssh import SSH
 
 logger = logging.getLogger("lpt.systemd")
 
 
-def convert_systemctl_timestamp(timestamp: str) -> datetime.datetime:
+def convert_systemctl_timestamp(
+    timestamp: Optional[str],
+) -> Optional[datetime.datetime]:
+    if not timestamp or timestamp == "n/a":
+        return None
+
     return datetime.datetime.strptime(timestamp, "%a %Y-%m-%d %H:%M:%S %Z")
 
 
-def convert_systemctl_timestamp_opt(timestamp: str) -> Optional[datetime.datetime]:
-    if timestamp == "n/a":
+def convert_systemctl_timestamp_monotonic(timestamp: Optional[str]) -> Optional[float]:
+    if not timestamp:
         return None
 
-    return convert_systemctl_timestamp(timestamp)
-
-
-def convert_systemctl_monotonic(timestamp: str) -> float:
     return float(timestamp) / 1000000
 
 
 def convert_systemctl_bool(value: str) -> bool:
     return not value == "no"
+
+
+@dataclasses.dataclass
+class SystemdEvent(Event):
+    unit: str
+    time_to_activate: Optional[float]
+    time_of_activation: Optional[float]
+    status: str
 
 
 @dataclasses.dataclass(frozen=True, eq=True)
@@ -81,11 +91,16 @@ class SystemdUnitList:
 class SystemdUnitShow:
     after: FrozenSet[str]
     condition_result: Optional[bool]
+    exec_main_start_timestamp: Optional[datetime.datetime]
+    exec_main_exit_timestamp: Optional[datetime.datetime]
+    active_enter_timestamp: Optional[datetime.datetime]
+    inactive_enter_timestamp: Optional[datetime.datetime]
+    inactive_exit_timestamp: Optional[datetime.datetime]
     exec_main_start_timestamp_monotonic: Optional[float]
     exec_main_exit_timestamp_monotonic: Optional[float]
-    active_enter_timestamp_monotonic: float
-    inactive_enter_timestamp_monotonic: float
-    inactive_exit_timestamp_monotonic: float
+    active_enter_timestamp_monotonic: Optional[float]
+    inactive_enter_timestamp_monotonic: Optional[float]
+    inactive_exit_timestamp_monotonic: Optional[float]
 
     def get_time_to_activate(self) -> float:
         if (
@@ -131,35 +146,70 @@ class SystemdUnitShow:
 
         raise ValueError(f"unable to determine time of completion: {self}")
 
+    def get_time_of_activation_realtime(self) -> datetime.datetime:
+        if self.active_enter_timestamp:
+            return self.active_enter_timestamp
+
+        if self.exec_main_exit_timestamp:
+            return self.exec_main_exit_timestamp
+
+        if self.inactive_exit_timestamp:
+            # Service may have failed to start.
+            return self.inactive_exit_timestamp
+
+        raise ValueError(f"unable to determine realtime of completion: {self}")
+
     @classmethod
     def parse_show(cls, show_properties: dict) -> "SystemdUnitShow":
-        exec_main_start_timestamp_monotonic: Optional[float] = None
-        exec_main_exit_timestamp_monotonic: Optional[float] = None
-
         after = frozenset(show_properties.get("After", "").split())
-        active_enter_timestamp_monotonic = convert_systemctl_monotonic(
-            show_properties["ActiveEnterTimestampMonotonic"]
-        )
-        inactive_exit_timestamp_monotonic = convert_systemctl_monotonic(
-            show_properties["InactiveExitTimestampMonotonic"]
-        )
-        inactive_enter_timestamp_monotonic = convert_systemctl_monotonic(
-            show_properties["InactiveEnterTimestampMonotonic"]
-        )
-
-        timestamp = show_properties.get("ExecMainStartTimestampMonotonic")
-        if timestamp:
-            exec_main_start_timestamp_monotonic = convert_systemctl_monotonic(timestamp)
-
-        timestamp = show_properties.get("ExecMainExitTimestampMonotonic")
-        if timestamp:
-            exec_main_exit_timestamp_monotonic = convert_systemctl_monotonic(timestamp)
-
         condition_result = convert_systemctl_bool(show_properties["ConditionResult"])
+
+        # Realtime timestamps.
+        active_enter_timestamp = convert_systemctl_timestamp(
+            show_properties.get("ActiveEnterTimestamp")
+        )
+        inactive_exit_timestamp = convert_systemctl_timestamp(
+            show_properties.get("InactiveExitTimestamp")
+        )
+        inactive_enter_timestamp = convert_systemctl_timestamp(
+            show_properties.get("InactiveEnterTimestamp")
+        )
+
+        exec_main_start_timestamp = convert_systemctl_timestamp(
+            show_properties.get("ExecMainStartTimestamp")
+        )
+
+        exec_main_exit_timestamp = convert_systemctl_timestamp(
+            show_properties.get("ExecMainExitTimestamp")
+        )
+
+        # Monotonic timestamps.
+        active_enter_timestamp_monotonic = convert_systemctl_timestamp_monotonic(
+            show_properties.get("ActiveEnterTimestampMonotonic")
+        )
+        inactive_exit_timestamp_monotonic = convert_systemctl_timestamp_monotonic(
+            show_properties.get("InactiveExitTimestampMonotonic")
+        )
+        inactive_enter_timestamp_monotonic = convert_systemctl_timestamp_monotonic(
+            show_properties.get("InactiveEnterTimestampMonotonic")
+        )
+
+        exec_main_start_timestamp_monotonic = convert_systemctl_timestamp_monotonic(
+            show_properties.get("ExecMainStartTimestampMonotonic")
+        )
+
+        exec_main_exit_timestamp_monotonic = convert_systemctl_timestamp_monotonic(
+            show_properties.get("ExecMainExitTimestampMonotonic")
+        )
 
         return cls(
             after=after,
             condition_result=condition_result,
+            exec_main_start_timestamp=exec_main_start_timestamp,
+            exec_main_exit_timestamp=exec_main_exit_timestamp,
+            active_enter_timestamp=active_enter_timestamp,
+            inactive_enter_timestamp=inactive_enter_timestamp,
+            inactive_exit_timestamp=inactive_exit_timestamp,
             exec_main_start_timestamp_monotonic=exec_main_start_timestamp_monotonic,
             exec_main_exit_timestamp_monotonic=exec_main_exit_timestamp_monotonic,
             active_enter_timestamp_monotonic=active_enter_timestamp_monotonic,
@@ -178,6 +228,32 @@ class SystemdUnit(SystemdUnitShow, SystemdUnitList):
         unit_show = SystemdUnitShow.parse_show(show_properties)
 
         return cls(**unit_list.__dict__, **unit_show.__dict__)
+
+    def is_viable_event(self) -> bool:
+        try:
+            self.get_time_to_activate()
+            self.get_time_of_activation()
+            self.get_time_of_activation_realtime()
+        except ValueError:
+            return False
+
+        return True
+
+    def as_event(self) -> SystemdEvent:
+        time_to_activate = self.get_time_to_activate()
+        time_of_activation = self.get_time_of_activation()
+        time_of_activation_realtime = self.get_time_of_activation_realtime()
+
+        return SystemdEvent(
+            label="SYSTEMD_UNIT",
+            source="systemd",
+            unit=self.unit,
+            time_to_activate=time_to_activate,
+            time_of_activation=time_of_activation,
+            timestamp_monotonic=time_of_activation,
+            timestamp_realtime=time_of_activation_realtime,
+            status=self.active,
+        )
 
 
 class Systemctl:
@@ -285,37 +361,56 @@ class Systemctl:
 
 @dataclasses.dataclass(frozen=True, eq=True)
 class Systemd:
+    units: Dict[str, SystemdUnit]
     userspace_timestamp: datetime.datetime
     userspace_timestamp_monotonic: float
     finish_timestamp: datetime.datetime
     finish_timestamp_monotonic: float
 
+    def get_events_of_interest(
+        self,
+    ) -> List[SystemdEvent]:
+        return [u.as_event() for u in self.units.values() if u.is_viable_event()]
+
     @classmethod
     def load_remote(cls, ssh: SSH, *, output_dir: Path) -> "Systemd":
         properties = Systemctl.show(output_dir=output_dir, run=ssh.run)  # type: ignore
-        return cls.parse(properties)
+        units = Systemctl.load_units_remote(ssh, output_dir=output_dir)
+        systemd = cls.parse(properties)
+        systemd.units.update(units)
+        return systemd
 
     @classmethod
     def load(cls, *, output_dir: Path) -> "Systemd":
         properties = Systemctl.show(output_dir=output_dir)
-        return cls.parse(properties)
+        units = Systemctl.load_units(output_dir=output_dir)
+        systemd = cls.parse(properties)
+        systemd.units.update(units)
+        return systemd
 
     @classmethod
     def parse(cls, properties: dict) -> "Systemd":
         userspace_timestamp = convert_systemctl_timestamp(
             properties["UserspaceTimestamp"]
         )
-        userspace_timestamp_monotonic = convert_systemctl_monotonic(
+        finish_timestamp = convert_systemctl_timestamp(properties["FinishTimestamp"])
+
+        userspace_timestamp_monotonic = convert_systemctl_timestamp_monotonic(
             properties["UserspaceTimestampMonotonic"]
         )
-        finish_timestamp = convert_systemctl_timestamp(properties["FinishTimestamp"])
-        finish_timestamp_monotonic = convert_systemctl_monotonic(
+        finish_timestamp_monotonic = convert_systemctl_timestamp_monotonic(
             properties["FinishTimestampMonotonic"]
         )
+
+        assert userspace_timestamp is not None
+        assert finish_timestamp is not None
+        assert userspace_timestamp_monotonic is not None
+        assert finish_timestamp_monotonic is not None
 
         return cls(
             userspace_timestamp=userspace_timestamp,
             userspace_timestamp_monotonic=userspace_timestamp_monotonic,
             finish_timestamp=finish_timestamp,
             finish_timestamp_monotonic=finish_timestamp_monotonic,
+            units={},
         )
