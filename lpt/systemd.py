@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 from typing import Dict, FrozenSet, List, Optional
 
-from .event import Event
+from .event import Event, EventSeverity
 from .ssh import SSH
 
 logger = logging.getLogger("lpt.systemd")
@@ -34,6 +34,20 @@ def convert_systemctl_bool(value: str) -> bool:
 
 @dataclasses.dataclass
 class SystemdEvent(Event):
+    pass
+
+
+@dataclasses.dataclass
+class SystemdSystemEvent(SystemdEvent):
+    userspace_timestamp: datetime.datetime
+    userspace_timestamp_monotonic: float
+    finish_timestamp: datetime.datetime
+    finish_timestamp_monotonic: float
+    system_state: str
+
+
+@dataclasses.dataclass
+class SystemdUnitEvent(SystemdEvent):
     unit: str
     time_to_activate: Optional[float]
     time_of_activation: Optional[float]
@@ -162,7 +176,9 @@ class SystemdUnitShow:
     @classmethod
     def parse_show(cls, show_properties: dict) -> "SystemdUnitShow":
         after = frozenset(show_properties.get("After", "").split())
-        condition_result = convert_systemctl_bool(show_properties["ConditionResult"])
+        condition_result = show_properties.get("ConditionResult")
+        if condition_result:
+            condition_result = convert_systemctl_bool(condition_result)
 
         # Realtime timestamps.
         active_enter_timestamp = convert_systemctl_timestamp(
@@ -221,9 +237,7 @@ class SystemdUnitShow:
 @dataclasses.dataclass(frozen=True, eq=True)
 class SystemdUnit(SystemdUnitShow, SystemdUnitList):
     @classmethod
-    def parse(  # pylint: disable=too-many-locals
-        cls, *, list_properties: dict, show_properties: dict
-    ) -> "SystemdUnit":
+    def parse(cls, *, list_properties: dict, show_properties: dict) -> "SystemdUnit":
         unit_list = SystemdUnitList.parse_list(list_properties)
         unit_show = SystemdUnitShow.parse_show(show_properties)
 
@@ -239,12 +253,25 @@ class SystemdUnit(SystemdUnitShow, SystemdUnitList):
 
         return True
 
-    def as_event(self) -> SystemdEvent:
+    def as_dict(self) -> dict:
+        obj = self.__dict__.copy()
+        obj["after"] = sorted(self.after)
+        for k, v in obj.items():
+            if isinstance(v, datetime.datetime):
+                obj[k] = str(v)
+        return obj
+
+    def as_event(self) -> SystemdUnitEvent:
+        if self.is_failed():
+            severity = EventSeverity.WARNING
+        else:
+            severity = EventSeverity.INFO
+
         time_to_activate = self.get_time_to_activate()
         time_of_activation = self.get_time_of_activation()
         time_of_activation_realtime = self.get_time_of_activation_realtime()
 
-        return SystemdEvent(
+        return SystemdUnitEvent(
             label="SYSTEMD_UNIT",
             source="systemd",
             unit=self.unit,
@@ -253,6 +280,7 @@ class SystemdUnit(SystemdUnitShow, SystemdUnitList):
             timestamp_monotonic=time_of_activation,
             timestamp_realtime=time_of_activation_realtime,
             status=self.active,
+            severity=severity,
         )
 
 
@@ -262,11 +290,8 @@ class Systemctl:
         cls,
         service_name: Optional[str] = None,
         *,
-        output_dir: Path,
         run=subprocess.run,
-    ) -> Dict[str, str]:
-        properties = {}
-
+    ) -> str:
         cmd = ["systemctl", "show"]
         if service_name:
             cmd.extend(["--", service_name])
@@ -279,18 +304,25 @@ class Systemctl:
                 text=True,
             )
         except subprocess.CalledProcessError as error:
-            logger.error("cmd (%r) failed (error=%r)", cmd, error)
-            raise
+            logger.error("cmd (%r) failed (error=%r), retrying as sudo", cmd, error)
+            cmd.insert(0, "sudo")
+            proc = run(
+                cmd,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            if proc.returncode != 0:
+                logger.error(f"unable to show systemd unit for {service_name}")
+                return ""
 
-        # Save captured data
-        if service_name:
-            log = output_dir / f"systemctl-show-{service_name}.json"
-        else:
-            log = output_dir / "systemctl-show.json"
-        log.write_text(proc.stdout)
+        return proc.stdout
 
-        lines = proc.stdout.strip().splitlines()
-        for line in lines:
+    @classmethod
+    def parse_show(cls, show_output: str) -> Dict[str, str]:
+        properties = {}
+
+        for line in show_output.strip().splitlines():
             line = line.strip()
             try:
                 key, value = line.split("=", 1)
@@ -303,15 +335,7 @@ class Systemctl:
         return properties
 
     @classmethod
-    def load_units_remote(cls, ssh: SSH, *, output_dir: Path) -> Dict[str, SystemdUnit]:
-        return cls.load_units(run=ssh.run, output_dir=output_dir)  # type: ignore
-
-    @classmethod
-    def load_units(
-        cls, *, output_dir: Path, run=subprocess.run
-    ) -> Dict[str, SystemdUnit]:
-        units = {}
-
+    def list_units(cls, *, run=subprocess.run) -> str:
         cmd = ["systemctl", "list-units", "--all", "-o", "json", "--no-pager"]
         try:
             logger.debug("Executing: %r", cmd)
@@ -324,37 +348,31 @@ class Systemctl:
         except subprocess.CalledProcessError as error:
             logger.error("cmd (%r) failed (error=%r)", cmd, error)
             raise
+        return proc.stdout
 
-        # Save captured data
-        log = output_dir / "systemctl-list-units.json"
-        log.write_text(proc.stdout)
-
+    @classmethod
+    def parse_list_units(cls, list_units_output: str) -> Dict[str, SystemdUnitList]:
         try:
-            output = json.loads(proc.stdout)
+            unit_list = json.loads(list_units_output)
+            return {u["unit"]: SystemdUnitList.parse_list(u) for u in unit_list}
         except json.JSONDecodeError:
             logger.warning(
                 "failed to parse systemctl as json, falling back to legacy mode"
             )
-            output = []
-            lines = proc.stdout.splitlines()
-            for line in lines:
-                line = line.strip()
-                # A blank line is before the legend, stop here.
-                if not line:
-                    break
-                try:
-                    unit = SystemdUnitList.parse_legacy_line(line)
-                except ValueError:
-                    continue
-                output.append(vars(unit))
 
-        for list_properties in output:
-            name = list_properties["unit"]
-            show_properties = cls.show(name, output_dir=output_dir, run=run)
-            unit = SystemdUnit.parse(
-                list_properties=list_properties, show_properties=show_properties
-            )
-            units[name] = unit
+        units = {}
+
+        for line in list_units_output.strip().splitlines():
+            line = line.strip()
+            # A blank line is before the legend, stop here.
+            if not line:
+                break
+            try:
+                unit = SystemdUnitList.parse_legacy_line(line)
+            except ValueError:
+                continue
+
+            units[unit.unit] = unit
 
         return units
 
@@ -366,30 +384,71 @@ class Systemd:
     userspace_timestamp_monotonic: float
     finish_timestamp: datetime.datetime
     finish_timestamp_monotonic: float
+    system_state: str
+
+    def as_event(self) -> SystemdSystemEvent:
+        if self.system_state != "running":
+            severity = EventSeverity.WARNING
+        else:
+            severity = EventSeverity.INFO
+
+        return SystemdSystemEvent(
+            label="SYSTEMD_UNIT",
+            source="systemd",
+            timestamp_monotonic=self.finish_timestamp_monotonic,
+            timestamp_realtime=self.finish_timestamp,
+            userspace_timestamp=self.userspace_timestamp,
+            userspace_timestamp_monotonic=self.userspace_timestamp_monotonic,
+            finish_timestamp=self.finish_timestamp,
+            finish_timestamp_monotonic=self.finish_timestamp_monotonic,
+            system_state=self.system_state,
+            severity=severity,
+        )
 
     def get_events_of_interest(
         self,
     ) -> List[SystemdEvent]:
-        return [u.as_event() for u in self.units.values() if u.is_viable_event()]
+        events: List[SystemdEvent] = []
+
+        events.extend(
+            [u.as_event() for u in self.units.values() if u.is_viable_event()]
+        )
+
+        system_event = self.as_event()
+        events.append(system_event)
+
+        return events
 
     @classmethod
     def load_remote(cls, ssh: SSH, *, output_dir: Path) -> "Systemd":
-        properties = Systemctl.show(output_dir=output_dir, run=ssh.run)  # type: ignore
-        units = Systemctl.load_units_remote(ssh, output_dir=output_dir)
-        systemd = cls.parse(properties)
-        systemd.units.update(units)
-        return systemd
+        return cls.load(output_dir=output_dir, run=ssh.run)
 
     @classmethod
-    def load(cls, *, output_dir: Path) -> "Systemd":
-        properties = Systemctl.show(output_dir=output_dir)
-        units = Systemctl.load_units(output_dir=output_dir)
-        systemd = cls.parse(properties)
-        systemd.units.update(units)
-        return systemd
+    def load(cls, *, output_dir: Path, run=subprocess.run) -> "Systemd":
+        units = {}
+        list_units_output = Systemctl.list_units(run=run)
+        list_units = Systemctl.parse_list_units(list_units_output)
+
+        for unit_name, list_unit in list_units.items():
+            show_output = Systemctl.show(unit_name, run=run)
+            show_properties = Systemctl.parse_show(show_output)
+
+            unit = SystemdUnit.parse(
+                list_properties=list_unit.__dict__.copy(),
+                show_properties=show_properties,
+            )
+            units[unit_name] = unit
+
+        encodable_units = {k: v.as_dict() for k, v in units.items()}
+        log = output_dir / "systemd-units.json"
+        log.write_text(json.dumps(encodable_units, indent=4))
+
+        show_output = Systemctl.show()
+        properties = Systemctl.parse_show(show_output)
+        return cls.parse(properties, units=units)
 
     @classmethod
-    def parse(cls, properties: dict) -> "Systemd":
+    def parse(cls, properties: dict, *, units=Dict[str, SystemdUnit]) -> "Systemd":
         userspace_timestamp = convert_systemctl_timestamp(
             properties["UserspaceTimestamp"]
         )
@@ -401,6 +460,7 @@ class Systemd:
         finish_timestamp_monotonic = convert_systemctl_timestamp_monotonic(
             properties["FinishTimestampMonotonic"]
         )
+        system_state = properties["SystemState"]
 
         assert userspace_timestamp is not None
         assert finish_timestamp is not None
@@ -412,5 +472,6 @@ class Systemd:
             userspace_timestamp_monotonic=userspace_timestamp_monotonic,
             finish_timestamp=finish_timestamp,
             finish_timestamp_monotonic=finish_timestamp_monotonic,
-            units={},
+            system_state=system_state,
+            units=units,
         )

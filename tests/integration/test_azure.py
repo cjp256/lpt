@@ -239,11 +239,11 @@ def test_azure_instances(
     )
 
     out = output_dir / "event_data.json"
-    out.write_text(json.dumps(vars(event_data), indent=4, sort_keys=True))
+    out.write_text(json.dumps(vars(event_data), indent=4))
 
     # Raise warnings to tester.
     for warning in event_data.warnings:
-        warn(f"warning for image={image}: {warning['label']}")
+        warn(f"warning for image={image}: {warning!r}")
 
     # Verify sample of cloud-init events.
     if not image.startswith("kinvolk"):

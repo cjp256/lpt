@@ -8,7 +8,7 @@ from typing import FrozenSet, List, Optional, Union
 
 import dateutil.parser
 
-from .event import Event
+from .event import Event, EventSeverity
 from .ssh import SSH
 from .time import calculate_reference_timestamp
 
@@ -42,8 +42,6 @@ class CloudInitFrame(Event):
 
     def as_dict(self) -> dict:
         obj = super().as_dict()
-        obj["timestamp_realtime_start"] = str(self.timestamp_realtime)
-        obj["timestamp_realtime_finish"] = str(self.timestamp_realtime)
 
         parent = obj.pop("parent")
         if parent:
@@ -174,8 +172,12 @@ class CloudInitEntry:
     def is_start_of_boot_record(self) -> bool:
         return bool(re.search("Cloud-init .* running 'init-local'", self.message))
 
-    def as_event(self, label: str) -> CloudInitEvent:
-        return CloudInitEvent(**self.__dict__, label=label, source="cloudinit")
+    def as_event(
+        self, label: str, *, severity: EventSeverity = EventSeverity.INFO
+    ) -> CloudInitEvent:
+        return CloudInitEvent(
+            **self.__dict__, label=label, source="cloudinit", severity=severity
+        )
 
 
 @dataclasses.dataclass
@@ -321,6 +323,7 @@ class CloudInit:
                     children=frozenset(),
                     parent=parent,
                     result="INCOMPLETE",
+                    severity=EventSeverity.WARNING,
                 )
 
                 if parent:
@@ -350,6 +353,8 @@ class CloudInit:
                     entry.timestamp_monotonic - frame.timestamp_monotonic_start
                 )
                 frame.result = entry.result
+                if frame.result == "SUCCESS":
+                    frame.severity = EventSeverity.INFO
 
         return frames
 
@@ -388,29 +393,48 @@ class CloudInit:
             events.append(entry.as_event("CLOUDINIT_FRAME_FINISH"))
 
         for entry in self.find_entries("ERROR"):
-            events.append(entry.as_event("WARNING_CLOUDINIT_ERROR"))
+            events.append(
+                entry.as_event("CLOUDINIT_ERROR", severity=EventSeverity.WARNING)
+            )
 
         for entry in self.find_entries("WARNING"):
-            events.append(entry.as_event("WARNING_CLOUDINIT_WARNING"))
+            events.append(
+                entry.as_event("CLOUDINIT_WARNING", severity=EventSeverity.WARNING)
+            )
 
         for entry in self.find_entries("CRITICAL"):
-            events.append(entry.as_event("WARNING_CLOUDINIT_CRITICAL"))
+            events.append(
+                entry.as_event("CLOUDINIT_CRITICAL", severity=EventSeverity.WARNING)
+            )
 
         for entry in self.find_entries("Traceback"):
-            events.append(entry.as_event("WARNING_CLOUDINIT_TRACEBACK"))
+            events.append(
+                entry.as_event("CLOUDINIT_TRACEBACK", severity=EventSeverity.WARNING)
+            )
 
         failed_entries = [e for e in self.entries if e.result not in (None, "SUCCESS")]
         for entry in failed_entries:
             if entry.message == "load_azure_ds_dir":
                 continue
-            events.append(entry.as_event(f"WARNING_UNEXPECTED_FAILURE {entry.result}"))
+            events.append(
+                entry.as_event(
+                    f"CLOUDINIT_UNEXPECTED_FAILURE {entry.result}",
+                    severity=EventSeverity.WARNING,
+                )
+            )
 
         for entry in self.find_entries("FAIL"):
             if "load_azure_ds_dir" in entry.message:
                 continue
-            events.append(entry.as_event("WARNING_CLOUDINIT_FAIL"))
+            events.append(
+                entry.as_event("CLOUDINIT_FAIL", severity=EventSeverity.WARNING)
+            )
 
         for entry in self.find_entries("_get_data", event_type="start")[1:]:
-            events.append(entry.as_event("WARNING_CLOUDINIT_UNEXPECTED_GET_DATA"))
+            events.append(
+                entry.as_event(
+                    "CLOUDINIT_UNEXPECTED_GET_DATA", severity=EventSeverity.WARNING
+                )
+            )
 
         return events

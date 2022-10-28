@@ -15,7 +15,7 @@ from .graph import ServiceGraph
 from .journal import Journal
 from .logging import configure_logging
 from .ssh import SSH
-from .systemd import Systemctl, Systemd
+from .systemd import Systemd
 
 logger = logging.getLogger("lpt")
 
@@ -116,19 +116,14 @@ def main_graph(args, ssh_mgr: SshManager) -> None:
     else:
         frames = []
 
-    if ssh:
-        systemd = Systemd.load_remote(ssh, output_dir=args.output)
-        units = Systemctl.load_units_remote(ssh, output_dir=args.output)
-    else:
-        systemd = Systemd.load(output_dir=args.output)
-        units = Systemctl.load_units(output_dir=args.output)
+    systemd = load_systemd(args, ssh)
 
     digraph = ServiceGraph(
         args.service,
         filter_services=sorted(args.filter_service),
         filter_conditional_result_no=args.filter_conditional_result_no,
         systemd=systemd,
-        units=units,
+        units=systemd.units,
         frames=frames,
     ).generate_digraph()
 

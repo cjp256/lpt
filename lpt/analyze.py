@@ -4,7 +4,7 @@ import logging
 from typing import List, Optional
 
 from .cloudinit import CloudInit
-from .event import Event
+from .event import Event, EventSeverity
 from .journal import Journal
 from .systemd import Systemd
 
@@ -43,18 +43,22 @@ def analyze_events(
     if not cloudinits:
         events.append(
             Event(
-                label="WARNING_NO_CLOUDINIT_LOGS",
+                label="CLOUDINIT_LOGS_MISSING",
                 source="analyze",
                 timestamp_realtime=datetime.datetime.utcnow(),
                 timestamp_monotonic=0.0,
+                severity=EventSeverity.WARNING,
             )
         )
+
+    for event in events:
+        assert isinstance(event.timestamp_realtime, datetime.datetime), repr(event)
 
     events = sorted(events, key=lambda x: x.timestamp_realtime)
     if event_types:
         events = [e for e in events if e.label in event_types]
 
     event_dicts = [e.as_dict() for e in events]
-    warnings = [e for e in event_dicts if e["label"].startswith("WARNING")]
+    warnings = [e for e in event_dicts if e["severity"] == "warning"]
 
     return EventData(events=event_dicts, warnings=warnings)

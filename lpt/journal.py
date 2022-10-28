@@ -9,7 +9,7 @@ from typing import List, Optional
 
 import dateutil.parser
 
-from .event import Event
+from .event import Event, EventSeverity
 from .ssh import SSH
 
 logger = logging.getLogger("lpt.journal")
@@ -76,8 +76,12 @@ class JournalEntry:
             logger.error("Failed to parse ts=%r (%r)", ts, error)
             raise
 
-    def as_event(self, label: str) -> JournalEvent:
-        return JournalEvent(**self.__dict__.copy(), label=label, source="journal")
+    def as_event(
+        self, label: str, *, severity: EventSeverity = EventSeverity.INFO
+    ) -> JournalEvent:
+        return JournalEvent(
+            **self.__dict__.copy(), label=label, severity=severity, source="journal"
+        )
 
 
 @dataclasses.dataclass
@@ -202,12 +206,20 @@ class Journal:
             events.append(entry.as_event("TARGET_REACHED"))
 
         for entry in self.find_entries("System clock wrong"):
-            events.append(entry.as_event("WARNING_CHRONY_SYSTEM_CLOCK_WRONG"))
+            events.append(
+                entry.as_event(
+                    "CHRONY_SYSTEM_CLOCK_WRONG", severity=EventSeverity.WARNING
+                )
+            )
 
         for entry in self.find_entries("System clock was stepped"):
-            events.append(entry.as_event("WARNING_CHRONY_SYSTEM_CLOCK_STEPPED"))
+            events.append(
+                entry.as_event(
+                    "CHRONY_SYSTEM_CLOCK_STEPPED", severity=EventSeverity.WARNING
+                )
+            )
 
         for entry in self.find_entries("segfault"):
-            events.append(entry.as_event("WARNING_SEGFAULT"))
+            events.append(entry.as_event("SEGFAULT", severity=EventSeverity.WARNING))
 
         return events
