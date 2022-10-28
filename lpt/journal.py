@@ -208,6 +208,6 @@ class Journal:
             events.append(entry.as_event("WARNING_CHRONY_SYSTEM_CLOCK_STEPPED"))
 
         for entry in self.find_entries("segfault"):
-            events.append(entry.as_event("ERROR_SEGFAULT"))
+            events.append(entry.as_event("WARNING_SEGFAULT"))
 
         return events

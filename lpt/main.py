@@ -178,7 +178,7 @@ def main_launch_azure_instance(args, ssh_mgr: SshManager) -> None:
         else:
             vm_size = "Standard_DS1_v2"
 
-        vm, public_ips = azure.create_standard_vm(
+        vm, public_ips = azure.launch_vm(
             image=image,
             name=vm_name,
             num_nics=1,

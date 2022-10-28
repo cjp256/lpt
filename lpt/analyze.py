@@ -14,7 +14,6 @@ logger = logging.getLogger("lpt.analyze")
 class EventData:
     events: List[dict]
     warnings: List[dict]
-    errors: List[dict]
 
 
 def analyze_events(
@@ -52,6 +51,5 @@ def analyze_events(
 
     event_dicts = [e.as_dict() for e in events]
     warnings = [e for e in event_dicts if e["label"].startswith("WARNING")]
-    errors = [e for e in event_dicts if e["label"].startswith("ERROR")]
 
-    return EventData(events=event_dicts, warnings=warnings, errors=errors)
+    return EventData(events=event_dicts, warnings=warnings)

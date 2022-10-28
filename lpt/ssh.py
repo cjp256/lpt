@@ -11,6 +11,11 @@ import paramiko
 logger = logging.getLogger("lpt.ssh")
 
 
+class SystemReadyTimeout(Exception):
+    def __init__(self, status: str) -> None:
+        self.status = status
+
+
 @dataclasses.dataclass
 class SSH:
     user: str
@@ -178,4 +183,4 @@ class SSH:
             time.sleep(sleep)
 
         logger.error("timed out waiting for system ready: %r", status)
-        return status
+        raise SystemReadyTimeout(status)

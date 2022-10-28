@@ -105,6 +105,7 @@ class Azure:
         return rg
 
     def rg_delete(self, rg, wait: bool = True) -> None:
+        logger.debug("Deleting resource group: %r", vars(rg))
         poller = self.resource_client.resource_groups.begin_delete(
             rg.name,
             force_deletion_types="Microsoft.Compute/virtualMachines,Microsoft.Compute/virtualMachineScaleSets",
@@ -113,6 +114,7 @@ class Azure:
             return
 
         poller.result()
+        logger.debug("Deleted resource group: %s", rg.name)
 
     def subnet_create(self, name: str, *, address_prefix: str, rg, nsg, vnet):
         params = {"address_prefix": address_prefix}
@@ -222,7 +224,7 @@ class Azure:
         )
         return vm
 
-    def create_standard_vm(
+    def launch_vm(
         self,
         *,
         image: str,

@@ -388,27 +388,27 @@ class CloudInit:
             events.append(entry.as_event("CLOUDINIT_FRAME_FINISH"))
 
         for entry in self.find_entries("ERROR"):
-            events.append(entry.as_event("ERROR_CLOUDINIT_ERROR"))
+            events.append(entry.as_event("WARNING_CLOUDINIT_ERROR"))
 
         for entry in self.find_entries("WARNING"):
-            events.append(entry.as_event("ERROR_CLOUDINIT_WARNING"))
+            events.append(entry.as_event("WARNING_CLOUDINIT_WARNING"))
 
         for entry in self.find_entries("CRITICAL"):
-            events.append(entry.as_event("ERROR_CLOUDINIT_CRITICAL"))
+            events.append(entry.as_event("WARNING_CLOUDINIT_CRITICAL"))
 
         for entry in self.find_entries("Traceback"):
-            events.append(entry.as_event("ERROR_CLOUDINIT_TRACEBACK"))
+            events.append(entry.as_event("WARNING_CLOUDINIT_TRACEBACK"))
 
         failed_entries = [e for e in self.entries if e.result not in (None, "SUCCESS")]
         for entry in failed_entries:
             if entry.message == "load_azure_ds_dir":
                 continue
-            events.append(entry.as_event(f"ERROR_UNEXPECTED_FAILURE {entry.result}"))
+            events.append(entry.as_event(f"WARNING_UNEXPECTED_FAILURE {entry.result}"))
 
         for entry in self.find_entries("FAIL"):
             if "load_azure_ds_dir" in entry.message:
                 continue
-            events.append(entry.as_event("ERROR_CLOUDINIT_FAIL"))
+            events.append(entry.as_event("WARNING_CLOUDINIT_FAIL"))
 
         for entry in self.find_entries("_get_data", event_type="start")[1:]:
             events.append(entry.as_event("WARNING_CLOUDINIT_UNEXPECTED_GET_DATA"))

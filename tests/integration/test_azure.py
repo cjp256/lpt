@@ -190,7 +190,7 @@ def test_azure_instances(
     else:
         vm_size = "Standard_DS1_v2"
 
-    vm, public_ips = azure.create_standard_vm(
+    vm, public_ips = azure.launch_vm(
         image=image,
         name=vm_name,
         num_nics=1,
@@ -206,9 +206,13 @@ def test_azure_instances(
     ssh.host = host
     ssh.user = TEST_USERNAME
     ssh.connect_with_retries()
-    system_status = ssh.wait_for_system_ready()
-
     logger.info("Connected: %s@%s", TEST_USERNAME, public_ips[0].ip_address)
+
+    try:
+        system_status = ssh.wait_for_system_ready()
+    except ssh.SystemReadyTimeout as error:
+        system_status = error.status
+        warn(f"Systemd timed out for image={image} (status={system_status})")
 
     output_dir = Path("/tmp", "lpt-tests", f"{image.replace(':', '_')}-{vm_name}")
     output_dir.mkdir(exist_ok=True, parents=True)
@@ -232,15 +236,9 @@ def test_azure_instances(
     out = output_dir / "event_data.json"
     out.write_text(json.dumps(vars(event_data), indent=4, sort_keys=True))
 
-    # Verify no warnings (first boot only), unless flatcar.
-    if image.startswith("kinvolk"):
-        assert len(event_data.warnings) == 1
-        assert event_data.warnings[0]["label"] == "WARNING_NO_CLOUDINIT_LOGS"
-    else:
-        assert len(event_data.warnings) == 0
-
-    # Verify no errors
-    assert len(event_data.errors) == 0
+    # Raise warnings to tester.
+    for warning in event_data.warnings:
+        warn(f"warning for image={image}: {warning['label']}")
 
     # Verify sample of cloud-init events.
     if not image.startswith("kinvolk"):
