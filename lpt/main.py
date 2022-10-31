@@ -166,6 +166,7 @@ def main_launch_azure_instance(args, ssh_mgr: SshManager) -> None:
             admin_username=args.admin_username,
             admin_password=None,
             restrict_ssh_ip=args.restrict_ssh_ip,
+            storage_sku=None,
         )
 
         logger.info(

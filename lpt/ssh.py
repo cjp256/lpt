@@ -26,6 +26,7 @@ class SSH:
     proxy_user: Optional[str] = None
     proxy_sock = None
     private_key: Optional[Path] = None
+    public_key: Optional[Path] = None
 
     def connect(self) -> None:
         if self.private_key:

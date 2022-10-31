@@ -11,7 +11,7 @@ tests:
 
 .PHONY: test-azure
 test-azure:
-	LPT_TEST_AZURE_IMAGES=1 python -m pytest -xrvvs tests/integration/test_azure.py -n 64 2>&1 | tee test-azure.log
+	LPT_TEST_AZURE_IMAGES=1 python -m pytest -xrvvs tests/integration/test_azure.py -n 32 2>&1 | tee test-azure.log
 
 .PHONY: sync
 sync: tests

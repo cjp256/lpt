@@ -150,15 +150,22 @@ class Azure:
         admin_username: str,
         admin_password: Optional[str],
         ssh_pubkey_path: Optional[Path],
+        storage_sku: Optional[str],
         vm_size: str,
     ):
+        if not storage_sku:
+            if "ds" in vm_size.lower():
+                storage_sku = "Premium_LRS"
+            else:
+                storage_sku = "Standard_LRS"
+
         params = {
             "location": rg.location,
             "storage_profile": {
                 "image_reference": {},
                 "osDisk": {
                     "caching": "ReadWrite",
-                    "managedDisk": {"storageAccountType": "Premium_LRS"},
+                    "managedDisk": {"storageAccountType": storage_sku},
                     "name": f"{name}-os-disk",
                     "createOption": "FromImage",
                     "deleteOption": "delete",
@@ -252,6 +259,7 @@ class Azure:
         admin_password: Optional[str],
         restrict_ssh_ip: Optional[str],
         ssh_pubkey_path: Path,
+        storage_sku: Optional[str],
         vm_size: str,
     ):
         """Create a basic Linux VM with SSH access."""
@@ -288,6 +296,7 @@ class Azure:
             admin_password=admin_password,
             image=image,
             ssh_pubkey_path=ssh_pubkey_path,
+            storage_sku=storage_sku,
             vm_size=vm_size,
         )
         return vm, public_ips

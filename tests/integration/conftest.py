@@ -1,6 +1,7 @@
 import logging
 import os
 
+
 # content of conftest.py
 def pytest_configure(config):
     worker_id = os.environ.get("PYTEST_XDIST_WORKER")

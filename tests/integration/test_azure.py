@@ -105,16 +105,20 @@ def ssh_keys(tmp_path: Path, vm_name: str):
 def ssh(ssh_keys):
     proxy_host = os.environ.get("LPT_TESTS_AZURE_SSH_PROXY_HOST")
     proxy_user = os.environ.get("LPT_TESTS_AZURE_SSH_PROXY_USER")
-    _, private_key = ssh_keys
+    public_key, private_key = ssh_keys
     yield SSH(
         host=None,
         user=TEST_USERNAME,
         proxy_host=proxy_host,
         proxy_user=proxy_user,
         private_key=private_key,
+        public_key=public_key,
     )
 
 
+@pytest.mark.parametrize(
+    "vm_size", ["Standard_D2d_v5", "Standard_D2ds_v5", "Standard_DS1_v2"]
+)
 @pytest.mark.parametrize(
     "image",
     [
@@ -126,35 +130,28 @@ def ssh(ssh_keys):
         "canonical:0001-com-ubuntu-minimal-focal:minimal-20_04-lts:latest",
         "canonical:0001-com-ubuntu-minimal-jammy:minimal-22_04-lts-gen2:latest",
         "canonical:0001-com-ubuntu-minimal-jammy:minimal-22_04-lts:latest",
-        "canonical:0001-com-ubuntu-server-focal:20_04-lts-arm64:latest",
         "canonical:0001-com-ubuntu-server-focal:20_04-lts-gen2:latest",
         "canonical:0001-com-ubuntu-server-focal:20_04-lts:latest",
-        "canonical:0001-com-ubuntu-server-jammy:22_04-lts-arm64:latest",
         "canonical:0001-com-ubuntu-server-jammy:22_04-lts-gen2:latest",
         "canonical:0001-com-ubuntu-server-jammy:22_04-lts:latest",
         "canonical:ubuntuserver:18.04-lts:latest",
-        "canonical:ubuntuserver:18_04-lts-arm64:latest",
         "canonical:ubuntuserver:18_04-lts-gen2:latest",
         "debian:debian-10:10-gen2:latest",
         "debian:debian-10:10:latest",
-        "debian:debian-11-arm64:11-backports:latest",
         "debian:debian-11:11-gen2:latest",
         "debian:debian-11:11:latest",
         "kinvolk:flatcar-container-linux-free:stable-gen2:latest",
         "kinvolk:flatcar-container-linux-free:stable:latest",
         "microsoftcblmariner:cbl-mariner:1-gen2:latest",
         "microsoftcblmariner:cbl-mariner:cbl-mariner-1:latest",
-        "microsoftcblmariner:cbl-mariner:cbl-mariner-2-arm64:latest",
         "microsoftcblmariner:cbl-mariner:cbl-mariner-2-gen2:latest",
         "microsoftcblmariner:cbl-mariner:cbl-mariner-2:latest",
-        "openlogic:centos:7_9-arm64:latest",
         "openlogic:centos:7_9-gen2:latest",
         "openlogic:centos:7_9:latest",
         "oracle:oracle-linux:ol79-gen2:latest",
         "oracle:oracle-linux:ol79:latest",
         "oracle:oracle-linux:ol84-lvm-gen2:latest",
         "oracle:oracle-linux:ol84-lvm:latest",
-        "redhat:rhel-arm64:8_6-arm64:latest",
         "redhat:rhel:7-lvm:latest",
         "redhat:rhel:79-gen2:latest",
         "redhat:rhel:7_9:latest",
@@ -180,56 +177,96 @@ def ssh(ssh_keys):
         "suse:sles-15-sp2:gen2:latest",
         "suse:sles-15-sp3:gen1:latest",
         "suse:sles-15-sp3:gen2:latest",
-        "suse:sles-15-sp4-arm64:gen2:latest",
         "suse:sles-15-sp4:gen2:latest",
     ],
 )
-def test_azure_instances(
-    azure, image, restrict_ssh_source_ip, rg, ssh, ssh_keys, vm_name
+def test_azure_amd64_instances(
+    azure, image, restrict_ssh_source_ip, rg, ssh, vm_name, vm_size
 ):
-    public_key, _ = ssh_keys
+    _launch_and_verify_instance(
+        azure=azure,
+        image=image,
+        restrict_ssh_source_ip=restrict_ssh_source_ip,
+        rg=rg,
+        ssh=ssh,
+        vm_name=vm_name,
+        vm_size=vm_size,
+    )
 
-    if "arm64" in image:
-        vm_size = "Standard_D4plds_v5"
-    else:
-        vm_size = "Standard_DS1_v2"
 
+@pytest.mark.parametrize("vm_size", ["Standard_D4plds_v5"])
+@pytest.mark.parametrize(
+    "image",
+    [
+        "canonical:0001-com-ubuntu-server-focal:20_04-lts-arm64:latest",
+        "canonical:0001-com-ubuntu-server-jammy:22_04-lts-arm64:latest",
+        "canonical:ubuntuserver:18_04-lts-arm64:latest",
+        "debian:debian-11-arm64:11-backports:latest",
+        "microsoftcblmariner:cbl-mariner:cbl-mariner-2-arm64:latest",
+        "openlogic:centos:7_9-arm64:latest",
+        "redhat:rhel-arm64:8_6-arm64:latest",
+        "suse:sles-15-sp4-arm64:gen2:latest",
+    ],
+)
+def test_azure_arm64_instances(
+    azure, image, restrict_ssh_source_ip, rg, ssh, vm_name, vm_size
+):
+    _launch_and_verify_instance(
+        azure=azure,
+        image=image,
+        restrict_ssh_source_ip=restrict_ssh_source_ip,
+        rg=rg,
+        ssh=ssh,
+        vm_name=vm_name,
+        vm_size=vm_size,
+    )
+
+
+def _launch_and_verify_instance(
+    azure, image, restrict_ssh_source_ip, rg, ssh, vm_name, vm_size
+):
     vm, public_ips = azure.launch_vm(
         image=image,
         name=vm_name,
         num_nics=1,
         rg=rg,
         vm_size=vm_size,
-        ssh_pubkey_path=public_key,
+        ssh_pubkey_path=ssh.public_key,
         admin_username=TEST_USERNAME,
         admin_password=None,
         restrict_ssh_ip=restrict_ssh_source_ip,
+        storage_sku=None,
     )
 
     host = public_ips[0].ip_address
     ssh.host = host
     ssh.user = TEST_USERNAME
     for boot_num in range(0, 2):
+        output_dir = Path(
+            "/tmp",
+            "lpt-tests",
+            image.replace(":", "_"),
+            vm_size,
+            vm_name,
+            f"boot_{boot_num}",
+        )
+        output_dir.mkdir(exist_ok=True, parents=True)
+
         if boot_num > 0:
             azure.vm_restart(rg=rg, vm=vm, wait=True)
 
         ssh.connect_with_retries()
         logger.info("Connected: %s@%s", TEST_USERNAME, public_ips[0].ip_address)
 
-        _verify_boot(boot_num=boot_num, image=image, ssh=ssh, vm_name=vm_name)
+        _verify_boot(image=image, output_dir=output_dir, ssh=ssh)
 
 
-def _verify_boot(*, boot_num: int, image: str, ssh: SSH, vm_name: str):
+def _verify_boot(*, image: str, output_dir: Path, ssh: SSH):
     try:
         system_status = ssh.wait_for_system_ready()
     except SystemReadyTimeout as error:
         system_status = error.status
         warn(f"Systemd timed out for image={image} (status={system_status})")
-
-    output_dir = Path(
-        "/tmp", "lpt-tests", image.replace(":", "_"), vm_name, f"boot{boot_num}"
-    )
-    output_dir.mkdir(exist_ok=True, parents=True)
 
     cloudinits = CloudInit.load_remote(ssh, output_dir=output_dir)
     if image.startswith("kinvolk"):
