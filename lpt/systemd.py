@@ -459,12 +459,12 @@ class Systemd:
         log.write_text(json.dumps(encodable_units, indent=4))
 
         show_output = Systemctl.show(run=run)
-        logging.debug("read systemd show: %r", show_output)
+        # logging.debug("read systemd show: %r", show_output)
         properties = Systemctl.parse_show(show_output)
-        logging.debug("parsed systemd show: %r", show_output)
+        # logging.debug("parsed systemd show: %r", show_output)
 
         systemd = cls.parse(properties, units=units)
-        logging.debug("systemd: %r", systemd)
+        # logging.debug("systemd: %r", systemd)
         return systemd
 
     @classmethod

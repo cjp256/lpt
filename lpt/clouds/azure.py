@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import logging
-import os
 from pathlib import Path
 from typing import List, Optional
 
@@ -15,9 +14,9 @@ logger = logging.getLogger(__name__)
 
 
 class Azure:
-    def __init__(self) -> None:
+    def __init__(self, subscription_id: str) -> None:
+        self.subscription_id = subscription_id
         self.credential = AzureCliCredential()
-        self.subscription_id = os.environ["AZURE_SUBSCRIPTION_ID"]
         self.resource_client = ResourceManagementClient(
             self.credential, self.subscription_id, polling_interval=1
         )
@@ -66,7 +65,7 @@ class Azure:
                     destination_address_prefix="*",
                     destination_port_range="22",
                     direction=azure.mgmt.network.models.SecurityRuleDirection.inbound,
-                    priority=500,
+                    priority=100,
                     protocol=azure.mgmt.network.models.SecurityRuleProtocol.tcp,
                     source_address_prefix=restrict_ssh_ip,
                     source_port_range="*",
@@ -155,7 +154,16 @@ class Azure:
     ):
         params = {
             "location": rg.location,
-            "storage_profile": {"image_reference": {}},
+            "storage_profile": {
+                "image_reference": {},
+                "osDisk": {
+                    "caching": "ReadWrite",
+                    "managedDisk": {"storageAccountType": "Premium_LRS"},
+                    "name": f"{name}-os-disk",
+                    "createOption": "FromImage",
+                    "deleteOption": "delete",
+                },
+            },
             "hardware_profile": {"vm_size": vm_size},
             "diagnostics_profile": {"boot_diagnostics": {"enabled": True}},
             "os_profile": {
@@ -167,6 +175,7 @@ class Azure:
                 "network_interfaces": [
                     {
                         "id": nic.id,
+                        "deleteOption": "delete",
                     }
                     for nic in nics
                 ]
@@ -223,6 +232,14 @@ class Azure:
             vars(vm),
         )
         return vm
+
+    def vm_restart(self, *, rg, vm, wait: bool = True) -> None:
+        poller = self.compute_client.virtual_machines.begin_restart(rg.name, vm.name)
+        logger.debug("Restarting vm: %s", vm.name)
+
+        if wait:
+            poller.wait()
+            logger.debug("Restarted vm: %s", vm.name)
 
     def launch_vm(
         self,

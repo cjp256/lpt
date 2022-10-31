@@ -22,7 +22,9 @@ from lpt.systemd import Systemd
 logger = logging.getLogger(__name__)
 
 if os.environ.get("LPT_TEST_AZURE_IMAGES") != "1":
-    pytest.skip("skipping azure integration tests", allow_module_level=True)
+    pytest.skip("requires LPT_TEST_AZURE_IMAGES=1", allow_module_level=True)
+elif not os.environ.get("LPT_TEST_AZURE_SUBSCRIPTION_ID"):
+    pytest.skip("requires LPT_TEST_AZURE_SUBSCRIPTION_ID=<id>", allow_module_level=True)
 
 TEST_USERNAME = "testuser"
 
@@ -48,7 +50,7 @@ def restrict_ssh_source_ip():
 
 @pytest.fixture
 def azure():
-    yield Azure()
+    yield Azure(os.environ["LPT_TEST_AZURE_SUBSCRIPTION_ID"])
 
 
 @pytest.fixture
@@ -207,10 +209,13 @@ def test_azure_instances(
     host = public_ips[0].ip_address
     ssh.host = host
     ssh.user = TEST_USERNAME
-    ssh.connect_with_retries()
-    logger.info("Connected: %s@%s", TEST_USERNAME, public_ips[0].ip_address)
-
     for boot_num in range(0, 2):
+        if boot_num > 0:
+            azure.vm_restart(rg=rg, vm=vm, wait=True)
+
+        ssh.connect_with_retries()
+        logger.info("Connected: %s@%s", TEST_USERNAME, public_ips[0].ip_address)
+
         _verify_boot(boot_num=boot_num, image=image, ssh=ssh, vm_name=vm_name)
 
 
@@ -222,7 +227,7 @@ def _verify_boot(*, boot_num: int, image: str, ssh: SSH, vm_name: str):
         warn(f"Systemd timed out for image={image} (status={system_status})")
 
     output_dir = Path(
-        "/tmp", "lpt-tests", f"{image.replace(':', '_')}-{vm_name}", f"boot{boot_num}"
+        "/tmp", "lpt-tests", image.replace(":", "_"), vm_name, f"boot{boot_num}"
     )
     output_dir.mkdir(exist_ok=True, parents=True)
 

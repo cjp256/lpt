@@ -70,8 +70,6 @@ class ServiceGraph:
 
     def walk_frame_dependencies(self) -> Set[Tuple[CloudInitFrame, CloudInitFrame]]:
         roots = [f for f in self.frames if f.parent is None]
-        for r in roots:
-            print("r=", r)
 
         deps = set()
         seen = set()
@@ -81,9 +79,9 @@ class ServiceGraph:
                 print(frame)
 
         def _walk_dependencies(frame: CloudInitFrame) -> None:
-            logger.debug("walking: %s", frame)
+            # logger.debug("walking: %s", frame)
             if frame in seen:
-                logger.debug("seen: %s", frame)
+                # logger.debug("seen: %s", frame)
                 return
 
             seen.add(frame)
@@ -104,9 +102,9 @@ class ServiceGraph:
         seen = set()
 
         def _walk_dependencies(service_name: str) -> None:
-            logger.debug("walking: %s", service_name)
+            # logger.debug("walking: %s", service_name)
             if service_name in seen:
-                logger.debug("seen: %s", service_name)
+                # logger.debug("seen: %s", service_name)
                 return
 
             seen.add(service_name)
@@ -157,7 +155,7 @@ class ServiceGraph:
             self.walk_unit_dependencies(), key=lambda x: x[0].unit
         )
         frame_dependencies = self.walk_frame_dependencies()
-        logger.debug("frame dependenices: %r", frame_dependencies)
+        # logger.debug("frame dependenices: %r", frame_dependencies)
 
         edges = []
         for s1, s2 in unit_dependencies:

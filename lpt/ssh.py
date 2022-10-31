@@ -86,6 +86,8 @@ class SSH:
                 logger.debug("failed to connect: %r", exc)
             except paramiko.ssh_exception.SSHException as exc:
                 logger.debug("failed to connect: %r", exc)
+            except TimeoutError as exc:
+                logger.debug("timed out: %r", exc)
 
             time.sleep(sleep)
 

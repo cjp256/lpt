@@ -3,6 +3,7 @@ import dataclasses
 import datetime
 import json
 import logging
+import os
 import tempfile
 from pathlib import Path
 from typing import List, Optional
@@ -138,7 +139,7 @@ def main_launch_azure_instance(args, ssh_mgr: SshManager) -> None:
     rg_name = args.rg
     vm_name = f"ephemeral-{name}"
 
-    azure = Azure()
+    azure = Azure(os.environ["AZURE_SUBSCRIPTION_ID"])
     rg = azure.rg_create(rg_name, location=args.location)
     logger.debug("RG created: %r", vars(rg))
 

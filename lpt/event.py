@@ -30,6 +30,9 @@ class Event:
     def as_dict(self) -> dict:
         obj = self.__dict__.copy()
 
+        if self.severity == EventSeverity.INFO:
+            obj.pop("severity")
+
         for k, v in obj.items():
             if isinstance(v, datetime.datetime):
                 obj[k] = str(v)

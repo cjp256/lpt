@@ -59,6 +59,6 @@ def analyze_events(
         events = [e for e in events if e.label in event_types]
 
     event_dicts = [e.as_dict() for e in events]
-    warnings = [e for e in event_dicts if e["severity"] == "warning"]
+    warnings = [e for e in event_dicts if e.get("severity", "info") == "warning"]
 
     return EventData(events=event_dicts, warnings=warnings)
