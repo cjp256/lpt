@@ -145,7 +145,7 @@ class Azure:
         logger.debug("Created vnet: %r", vars(vnet))
         return vnet
 
-    def vm_create(
+    def vm_create(  # pylint: disable=too-many-locals
         self,
         name: str,
         *,
@@ -265,7 +265,7 @@ class Azure:
             poller.wait()
             logger.debug("Restarted vm: %s", vm.name)
 
-    def launch_vm(
+    def launch_vm(  # pylint: disable=too-many-locals
         self,
         *,
         image: str,
@@ -288,8 +288,6 @@ class Azure:
         public_ip_name = name + "-ip"
         subnet_name = name + "-subnet"
         vnet_name = name + "-vnet"
-        admin_username = admin_username
-        admin_password = admin_password
 
         public_ips = [
             self.public_ip_create(f"{public_ip_name}{i}", rg=rg)

@@ -150,6 +150,7 @@ def _launch_and_verify_instance(
         ssh_pubkey_path=ssh.public_key,
         admin_username=TEST_USERNAME,
         admin_password=None,
+        disk_size_gb=64,
         restrict_ssh_ip=restrict_ssh_source_ip,
         storage_sku=None,
     )
