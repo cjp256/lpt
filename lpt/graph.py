@@ -5,7 +5,7 @@ from typing import List, Optional, Set, Tuple
 from .cloudinit import CloudInitFrame
 from .systemd import Systemd, SystemdUnit
 
-logger = logging.getLogger("lpt.graph")
+logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass

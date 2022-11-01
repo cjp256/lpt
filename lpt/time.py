@@ -1,7 +1,7 @@
 import datetime
 import logging
 
-logger = logging.getLogger("lpt.time")
+logger = logging.getLogger(__name__)
 
 
 def calculate_reference_timestamp(

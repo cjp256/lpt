@@ -149,6 +149,7 @@ class Azure:
         rg,
         admin_username: str,
         admin_password: Optional[str],
+        disk_size_gb: int,
         ssh_pubkey_path: Optional[Path],
         storage_sku: Optional[str],
         vm_size: str,
@@ -169,6 +170,7 @@ class Azure:
                     "name": f"{name}-os-disk",
                     "createOption": "FromImage",
                     "deleteOption": "delete",
+                    "diskSizeGb": disk_size_gb,
                 },
             },
             "hardware_profile": {"vm_size": vm_size},
@@ -241,7 +243,17 @@ class Azure:
         return vm
 
     def vm_restart(self, *, rg, vm, wait: bool = True) -> None:
-        poller = self.compute_client.virtual_machines.begin_restart(rg.name, vm.name)
+        while True:
+            try:
+                poller = self.compute_client.virtual_machines.begin_restart(
+                    rg.name, vm.name
+                )
+                break
+            except azure.core.exceptions.ServiceResponseError as error:
+                logger.debug(
+                    "Failed restart due to read timeout for vm: %s (%r)", vm.name, error
+                )
+
         logger.debug("Restarting vm: %s", vm.name)
 
         if wait:
@@ -257,6 +269,7 @@ class Azure:
         num_nics: int,
         admin_username: str,
         admin_password: Optional[str],
+        disk_size_gb: int,
         restrict_ssh_ip: Optional[str],
         ssh_pubkey_path: Path,
         storage_sku: Optional[str],
@@ -294,6 +307,7 @@ class Azure:
             nics=nics,
             admin_username=admin_username,
             admin_password=admin_password,
+            disk_size_gb=disk_size_gb,
             image=image,
             ssh_pubkey_path=ssh_pubkey_path,
             storage_sku=storage_sku,

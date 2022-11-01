@@ -1,6 +1,7 @@
 import dataclasses
 import logging
 import shlex
+import socket
 import subprocess
 import time
 from pathlib import Path
@@ -24,9 +25,33 @@ class SSH:
     proxy_client: Optional[paramiko.SSHClient] = None
     proxy_host: Optional[str] = None
     proxy_user: Optional[str] = None
-    proxy_sock = None
+    proxy_sock: Optional[paramiko.Channel] = None
     private_key: Optional[Path] = None
     public_key: Optional[Path] = None
+    transport: Optional[paramiko.Transport] = None
+
+    def close(self) -> None:
+        if self.client:
+            logger.debug("closing client...")
+            self.client.close()
+            self.client = None
+
+        if self.proxy_sock:
+            logger.debug("closing proxy sock...")
+            self.proxy_sock.close()
+            self.proxy_sock = None
+
+        if self.transport:
+            logger.debug("closing proxy transport...")
+            self.transport.close()
+            self.transport = None
+
+        if self.proxy_client:
+            logger.debug("closing proxy client...")
+            self.proxy_client.close()
+            self.proxy_client = None
+
+        logger.debug("closed client...")
 
     def connect(self) -> None:
         if self.private_key:
@@ -54,12 +79,12 @@ class SSH:
                 self.proxy_user,
             )
 
-            transport = self.proxy_client.get_transport()
-            if not transport:
+            self.transport = self.proxy_client.get_transport()
+            if not self.transport:
                 raise RuntimeError("unable to open transport")
 
             logger.debug("opening transport channel to %s...", self.host)
-            self.proxy_sock = transport.open_channel(
+            self.proxy_sock = self.transport.open_channel(
                 "direct-tcpip", (self.host, 22), ("", 0)
             )
 
@@ -83,13 +108,18 @@ class SSH:
                 return
             except paramiko.ssh_exception.AuthenticationException as exc:
                 logger.debug("failed auth: %r", exc)
+            except paramiko.ssh_exception.BadHostKeyException as exc:
+                logger.debug("failed to verify host key: %r", exc)
             except paramiko.ssh_exception.NoValidConnectionsError as exc:
                 logger.debug("failed to connect: %r", exc)
             except paramiko.ssh_exception.SSHException as exc:
                 logger.debug("failed to connect: %r", exc)
+            except socket.error as exc:
+                logger.debug("failed to connect due to socket error: %r", exc)
             except TimeoutError as exc:
-                logger.debug("timed out: %r", exc)
+                logger.debug("failed to conenct due to timeout: %r", exc)
 
+            self.close()
             time.sleep(sleep)
 
     def fetch(self, remote_path: Path, local_path: Path) -> None:
@@ -114,7 +144,8 @@ class SSH:
         *,
         capture_output: bool = False,
         check: bool = False,
-        text: bool = False
+        text: bool = False,
+        timeout: float = 300.0,
     ) -> subprocess.CompletedProcess:
         stderr_out: Union[bytes, str, None] = b""
         stdout_out: Union[bytes, str, None] = b""
@@ -123,7 +154,7 @@ class SSH:
         assert self.client
 
         logger.debug("running command: %r", cmd_string)
-        stdin, stdout, stderr = self.client.exec_command(cmd_string)
+        stdin, stdout, stderr = self.client.exec_command(cmd_string, timeout=timeout)
         stdin.close()
 
         while True:
@@ -166,7 +197,26 @@ class SSH:
 
         return subprocess.CompletedProcess(cmd, returncode, stdout_out, stderr_out)
 
+    def reboot(self) -> None:
+        cmd = ["sudo", "shutdown", "-r", "1"]
+
+        logger.debug("rebooting vm...")
+        self.run(cmd, capture_output=True, check=True, text=True)
+        logger.debug("rebooted vm, will start in 60s...")
+
     def wait_for_system_ready(self, *, attempts: int = 300, sleep: float = 1.0) -> str:
+        try:
+            cmd = ["cloud-init", "status", "--wait"]
+            self.run(cmd, capture_output=True, check=False, text=True)
+        except:
+            pass
+
+        try:
+            cmd = ["systemctl", "is-system-running", "--wait"]
+            self.run(cmd, capture_output=True, check=False, text=True)
+        except:
+            pass
+
         cmd = ["systemctl", "is-system-running"]
 
         logger.debug("waiting for system ready...")

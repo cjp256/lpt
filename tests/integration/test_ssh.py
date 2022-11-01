@@ -33,6 +33,21 @@ def warn(warning: str) -> None:
     warnings.warn(UserWarning(warning))
 
 
+@pytest.fixture
+def ssh(ssh_keys):
+    proxy_host = os.environ.get("LPT_TESTS_AZURE_SSH_PROXY_HOST")
+    proxy_user = os.environ.get("LPT_TESTS_AZURE_SSH_PROXY_USER")
+    public_key, private_key = ssh_keys
+    yield SSH(
+        host=None,
+        user=TEST_USERNAME,
+        proxy_host=proxy_host,
+        proxy_user=proxy_user,
+        private_key=private_key,
+        public_key=public_key,
+    )
+
+
 @pytest.mark.parametrize(
     "vm_size", ["Standard_D2d_v5", "Standard_D2ds_v5", "Standard_DS1_v2"]
 )
@@ -151,6 +166,7 @@ def _launch_and_verify_instance(
         ssh_pubkey_path=ssh.public_key,
         admin_username=TEST_USERNAME,
         admin_password=None,
+        disk_size_gb=64,
         restrict_ssh_ip=restrict_ssh_source_ip,
         storage_sku=None,
     )

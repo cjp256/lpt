@@ -3,7 +3,7 @@ import datetime
 import logging
 from enum import Enum
 
-logger = logging.getLogger("lpt.event")
+logger = logging.getLogger(__name__)
 
 
 class EventSeverity(Enum):

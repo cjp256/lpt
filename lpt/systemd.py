@@ -9,7 +9,7 @@ from typing import Dict, FrozenSet, List, Optional
 from .event import Event, EventSeverity
 from .ssh import SSH
 
-logger = logging.getLogger("lpt.systemd")
+logger = logging.getLogger(__name__)
 
 
 def convert_systemctl_timestamp(

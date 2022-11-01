@@ -12,7 +12,7 @@ import dateutil.parser
 from .event import Event, EventSeverity
 from .ssh import SSH
 
-logger = logging.getLogger("lpt.journal")
+logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass

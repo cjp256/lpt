@@ -3,7 +3,7 @@ import subprocess
 from pathlib import Path
 from typing import Tuple
 
-logger = logging.getLogger("lpt.clouds.keys")
+logger = logging.getLogger(__name__)
 
 
 def generate_ssh_keys(dir_path: Path, name: str) -> Tuple[Path, Path]:

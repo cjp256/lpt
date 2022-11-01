@@ -8,7 +8,7 @@ from .event import Event, EventSeverity
 from .journal import Journal
 from .systemd import Systemd
 
-logger = logging.getLogger("lpt.analyze")
+logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass

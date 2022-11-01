@@ -12,7 +12,7 @@ from .event import Event, EventSeverity
 from .ssh import SSH
 from .time import calculate_reference_timestamp
 
-logger = logging.getLogger("lpt.cloudinit")
+logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass(eq=True)

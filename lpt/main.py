@@ -18,7 +18,7 @@ from .logging import configure_logging
 from .ssh import SSH
 from .systemd import Systemd
 
-logger = logging.getLogger("lpt")
+logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
@@ -165,6 +165,7 @@ def main_launch_azure_instance(args, ssh_mgr: SshManager) -> None:
             ssh_pubkey_path=pub_key,
             admin_username=args.admin_username,
             admin_password=None,
+            disk_size_gb=64,
             restrict_ssh_ip=args.restrict_ssh_ip,
             storage_sku=None,
         )

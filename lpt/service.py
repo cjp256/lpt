@@ -1,7 +1,7 @@
 import dataclasses
 import logging
 
-logger = logging.getLogger("lpt.systemd")
+logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass(frozen=True, eq=True)
