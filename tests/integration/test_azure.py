@@ -25,8 +25,6 @@ if os.environ.get("LPT_TEST_AZURE_IMAGES") != "1":
 elif not os.environ.get("LPT_TEST_AZURE_SUBSCRIPTION_ID"):
     pytest.skip("requires LPT_TEST_AZURE_SUBSCRIPTION_ID=<id>", allow_module_level=True)
 
-TEST_USERNAME = "testuser"
-
 
 def warn(warning: str) -> None:
     warnings.warn(UserWarning(warning))
@@ -97,10 +95,20 @@ def warn(warning: str) -> None:
     ],
 )
 def test_azure_amd64_instances(
-    azure, image, restrict_ssh_source_ip, rg, ssh, vm_name, vm_size
+    admin_username,
+    admin_password,
+    azure,
+    image,
+    restrict_ssh_source_ip,
+    rg,
+    ssh,
+    vm_name,
+    vm_size,
 ):
     _launch_and_verify_instance(
         azure=azure,
+        admin_username=admin_username,
+        admin_password=admin_password,
         image=image,
         restrict_ssh_source_ip=restrict_ssh_source_ip,
         rg=rg,
@@ -125,9 +133,19 @@ def test_azure_amd64_instances(
     ],
 )
 def test_azure_arm64_instances(
-    azure, image, restrict_ssh_source_ip, rg, ssh, vm_name, vm_size
+    admin_username,
+    admin_password,
+    azure,
+    image,
+    restrict_ssh_source_ip,
+    rg,
+    ssh,
+    vm_name,
+    vm_size,
 ):
     _launch_and_verify_instance(
+        admin_username=admin_username,
+        admin_password=admin_password,
         azure=azure,
         image=image,
         restrict_ssh_source_ip=restrict_ssh_source_ip,
@@ -139,17 +157,25 @@ def test_azure_arm64_instances(
 
 
 def _launch_and_verify_instance(
-    azure, image, restrict_ssh_source_ip, rg, ssh, vm_name, vm_size
+    admin_username,
+    admin_password,
+    azure,
+    image,
+    restrict_ssh_source_ip,
+    rg,
+    ssh,
+    vm_name,
+    vm_size,
 ):
     vm, public_ips = azure.launch_vm(
+        admin_username=admin_username,
+        admin_password=admin_password,
         image=image,
         name=vm_name,
         num_nics=1,
         rg=rg,
         vm_size=vm_size,
         ssh_pubkey_path=ssh.public_key,
-        admin_username=TEST_USERNAME,
-        admin_password=None,
         disk_size_gb=64,
         restrict_ssh_ip=restrict_ssh_source_ip,
         storage_sku=None,
@@ -157,7 +183,7 @@ def _launch_and_verify_instance(
 
     host = public_ips[0].ip_address
     ssh.host = host
-    ssh.user = TEST_USERNAME
+    ssh.user = admin_username
     for boot_num in range(0, 2):
         output_dir = Path(
             "/tmp",
@@ -175,7 +201,7 @@ def _launch_and_verify_instance(
             time.sleep(120)
 
         ssh.connect_with_retries()
-        logger.info("Connected: %s@%s", TEST_USERNAME, public_ips[0].ip_address)
+        logger.info("Connected: %s@%s", admin_username, public_ips[0].ip_address)
 
         _verify_boot(image=image, output_dir=output_dir, ssh=ssh)
 

@@ -138,7 +138,7 @@ class SSH:
         assert isinstance(proc.stdout, bytes)
         local_path.write_bytes(proc.stdout)
 
-    def run(
+    def run(  # pylint: disable=too-many-locals
         self,
         cmd: List[str],
         *,
@@ -162,7 +162,12 @@ class SSH:
             assert isinstance(stdout_out, bytes)
 
             logger.debug("reading stdout")
-            stdout_read = stdout.read()
+            try:
+                stdout_read = stdout.read()
+            except TimeoutError as exc:
+                logger.debug("timed out reading stdout: %r", exc)
+                stdout_read = b""
+
             if stdout_read:
                 stdout_out += stdout_read
             logger.debug("read %d bytes from stdout", len(stdout_read))
@@ -173,7 +178,11 @@ class SSH:
                 stderr_out += stderr_read
             logger.debug("read %d bytes from stderr", len(stderr_read))
 
-            if not stdout_read and not stderr_read:
+            if (
+                not stdout_read
+                and not stderr_read
+                and stdout.channel.exit_status_ready()
+            ):
                 break
 
         logger.debug("output read")

@@ -14,8 +14,6 @@ from lpt.ssh import SSH
 
 logger = logging.getLogger(__name__)
 
-TEST_USERNAME = "testuser"
-
 
 def pytest_configure(config):
     output_dir = Path(os.environ.get("LPT_TEST_OUTPUT_DIR", "/tmp/lpt-tests"))
@@ -47,6 +45,16 @@ def restrict_ssh_source_ip():
         yield os.environ["LPT_TESTS_AZURE_RESTRICT_SOURCE_IP"]
     except KeyError:
         yield whatismyip.whatismyipv4()
+
+
+@pytest.fixture
+def admin_username():
+    yield os.environ.get("LPT_TESTS_AZURE_ADMIN_USER", "testuser")
+
+
+@pytest.fixture
+def admin_password():
+    yield os.environ.get("LPT_TESTS_AZURE_ADMIN_PASSWORD")
 
 
 @pytest.fixture
@@ -104,13 +112,13 @@ def ssh_keys(tmp_path: Path, vm_name: str):
 
 
 @pytest.fixture
-def ssh(ssh_keys):
+def ssh(ssh_keys, admin_username):
     proxy_host = os.environ.get("LPT_TESTS_AZURE_SSH_PROXY_HOST")
     proxy_user = os.environ.get("LPT_TESTS_AZURE_SSH_PROXY_USER")
     public_key, private_key = ssh_keys
     yield SSH(
         host=None,
-        user=TEST_USERNAME,
+        user=admin_username,
         proxy_host=proxy_host,
         proxy_user=proxy_user,
         private_key=private_key,
