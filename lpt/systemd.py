@@ -317,7 +317,7 @@ class Systemctl:
                 text=True,
             )
             if proc.returncode != 0:
-                logger.error(f"unable to show systemd unit for {service_name}")
+                logger.error("unable to show systemd unit for %s", service_name)
                 return ""
 
         return proc.stdout

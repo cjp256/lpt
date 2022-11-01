@@ -107,7 +107,12 @@ class Azure:
         logger.debug("Deleting resource group: %r", vars(rg))
         poller = self.resource_client.resource_groups.begin_delete(
             rg.name,
-            force_deletion_types="Microsoft.Compute/virtualMachines,Microsoft.Compute/virtualMachineScaleSets",
+            force_deletion_types=",".join(
+                [
+                    "Microsoft.Compute/virtualMachines",
+                    "Microsoft.Compute/virtualMachineScaleSets",
+                ]
+            ),
         )
         if not wait:
             return

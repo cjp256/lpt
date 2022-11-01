@@ -16,14 +16,15 @@ logger = logging.getLogger(__name__)
 
 TEST_USERNAME = "testuser"
 
-# content of conftest.py
+
 def pytest_configure(config):
+    output_dir = Path(os.environ.get("LPT_TEST_OUTPUT_DIR", "/tmp/lpt-tests"))
+    output_dir.mkdir(exist_ok=True, parents=True)
+
     worker_id = os.environ.get("PYTEST_XDIST_WORKER")
     if worker_id is None:
         return
 
-    output_dir = Path(os.environ.get("LPT_TEST_OUTPUT_DIR", "/tmp/lpt-tests"))
-    output_dir.mkdir(exist_ok=True, parents=True)
     output_file = output_dir / f"{worker_id}.log"
 
     logging.basicConfig(

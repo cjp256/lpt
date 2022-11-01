@@ -10,7 +10,6 @@ import zlib
 from pathlib import Path
 
 import pytest
-import whatismyip  # type: ignore
 
 from lpt.analyze import analyze_events
 from lpt.cloudinit import CloudInit

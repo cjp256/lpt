@@ -134,7 +134,9 @@ def main_help(parser, _):
     parser.print_help()
 
 
-def main_launch_azure_instance(args, ssh_mgr: SshManager) -> None:
+def main_launch_azure_instance(  # pylint: disable=too-many-locals
+    args, ssh_mgr: SshManager
+) -> None:
     name = datetime.datetime.utcnow().strftime("t%m%d%Y%H%M%S%f")
     rg_name = args.rg
     vm_name = f"ephemeral-{name}"
@@ -145,10 +147,10 @@ def main_launch_azure_instance(args, ssh_mgr: SshManager) -> None:
 
     if args.ssh_public_key:
         pub_key = args.ssh_public_key
-        priv_key = None
     else:
-        key_dir = Path(tempfile.TemporaryDirectory().name)
-        pub_key, priv_key = generate_ssh_keys(key_dir, "testkey")
+        name = tempfile.TemporaryDirectory().name  # pylint: disable=consider-using-with
+        key_dir = Path(name)
+        pub_key, _ = generate_ssh_keys(key_dir, "testkey")
 
     for image in args.images:
         if "arm64" in image:

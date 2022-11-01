@@ -114,10 +114,10 @@ class SSH:
                 logger.debug("failed to connect: %r", exc)
             except paramiko.ssh_exception.SSHException as exc:
                 logger.debug("failed to connect: %r", exc)
-            except socket.error as exc:
-                logger.debug("failed to connect due to socket error: %r", exc)
             except TimeoutError as exc:
                 logger.debug("failed to conenct due to timeout: %r", exc)
+            except socket.error as exc:
+                logger.debug("failed to connect due to socket error: %r", exc)
 
             self.close()
             time.sleep(sleep)
@@ -208,13 +208,13 @@ class SSH:
         try:
             cmd = ["cloud-init", "status", "--wait"]
             self.run(cmd, capture_output=True, check=False, text=True)
-        except:
+        except Exception:  # pylint: disable=broad-except
             pass
 
         try:
             cmd = ["systemctl", "is-system-running", "--wait"]
             self.run(cmd, capture_output=True, check=False, text=True)
-        except:
+        except Exception:  # pylint: disable=broad-except
             pass
 
         cmd = ["systemctl", "is-system-running"]
