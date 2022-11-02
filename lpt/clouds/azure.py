@@ -67,7 +67,7 @@ class Azure:
                     direction=azure.mgmt.network.models.SecurityRuleDirection.inbound,
                     priority=100,
                     protocol=azure.mgmt.network.models.SecurityRuleProtocol.tcp,
-                    source_address_prefix=restrict_ssh_ip,
+                    source_address_prefix="CorpNetPublic",
                     source_port_range="*",
                 ),
             ],

@@ -49,7 +49,7 @@ def restrict_ssh_source_ip():
 
 @pytest.fixture
 def admin_username():
-    yield os.environ.get("LPT_TESTS_AZURE_ADMIN_USER", "testuser")
+    yield os.environ.get("LPT_TESTS_AZURE_ADMIN_USERNAME", "testuser")
 
 
 @pytest.fixture

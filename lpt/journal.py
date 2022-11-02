@@ -102,12 +102,27 @@ class Journal:
             cmd = ["journalctl", "-o", "json", "--no-pager"]
             if journal_path:
                 cmd.extend(["-D", journal_path.as_posix()])
+
             try:
                 proc = run(cmd, capture_output=True, check=True)
-            except subprocess.CalledProcessError as exc:
-                logger.debug("falling back to trying journalctl with sudo: %r", exc)
+            except subprocess.CalledProcessError as error:
+                logger.debug(
+                    "failed cmd: %r (stdout=%r) (stderr=%r)",
+                    cmd,
+                    error.stdout,
+                    error.stderr,
+                )
                 cmd.insert(0, "sudo")
-                proc = run(cmd, capture_output=True, check=True)
+                try:
+                    proc = run(cmd, capture_output=True, check=True)
+                except subprocess.CalledProcessError as error2:
+                    logger.debug(
+                        "failed cmd: %r (stdout=%r) (stderr=%r)",
+                        cmd,
+                        error2.stdout,
+                        error2.stderr,
+                    )
+                    raise
 
             data = proc.stdout
 

@@ -14,6 +14,7 @@ import pytest
 from lpt.analyze import analyze_events
 from lpt.cloudinit import CloudInit
 from lpt.graph import ServiceGraph
+from lpt.imds import InstanceMetadata
 from lpt.journal import Journal
 from lpt.ssh import SSH, SystemReadyTimeout
 from lpt.systemd import Systemd
@@ -205,6 +206,8 @@ def _launch_and_verify_instance(
 
         _verify_boot(image=image, output_dir=output_dir, ssh=ssh)
 
+    ssh.close()
+
 
 def _verify_boot(*, image: str, output_dir: Path, ssh: SSH):
     try:
@@ -226,6 +229,9 @@ def _verify_boot(*, image: str, output_dir: Path, ssh: SSH):
         assert len(cloudinits) == 0
     else:
         assert len(cloudinits) > 0
+
+    instance_metadata = InstanceMetadata.load_remote(ssh, output_dir=output_dir)
+    assert instance_metadata.metadata["compute"]["name"]
 
     event_data = analyze_events(
         journals=journals,
