@@ -1,4 +1,5 @@
 import dataclasses
+import io
 import logging
 import shlex
 import socket
@@ -138,7 +139,7 @@ class SSH:
         assert isinstance(proc.stdout, bytes)
         local_path.write_bytes(proc.stdout)
 
-    def run(  # pylint: disable=too-many-locals
+    def run(  # pylint: disable=too-many-locals,too-many-statements
         self,
         cmd: List[str],
         *,
@@ -146,6 +147,8 @@ class SSH:
         check: bool = False,
         text: bool = False,
         timeout: float = 300.0,
+        recv_len: int = 64 * 1024,
+        relax_duration: float = 0.02,
     ) -> subprocess.CompletedProcess:
         stderr_out: Union[bytes, str, None] = b""
         stdout_out: Union[bytes, str, None] = b""
@@ -153,42 +156,70 @@ class SSH:
 
         assert self.client
 
+        logger.debug("opening ssh channel...")
+        transport = self.client.get_transport()
+        assert transport
+
+        channel = transport.open_session()
+        channel.settimeout(timeout)
+
         logger.debug("running command: %r", cmd_string)
-        stdin, stdout, stderr = self.client.exec_command(cmd_string, timeout=timeout)
-        stdin.close()
+        channel.exec_command(cmd_string)
 
-        while True:
-            assert isinstance(stderr_out, bytes)
-            assert isinstance(stdout_out, bytes)
+        logger.debug("shutting down write...")
+        channel.shutdown_write()
 
-            logger.debug("reading stdout")
-            try:
-                stdout_read = stdout.read()
-            except TimeoutError as exc:
-                logger.debug("timed out reading stdout: %r", exc)
-                stdout_read = b""
+        stdout_io = io.BytesIO()
+        stderr_io = io.BytesIO()
 
-            if stdout_read:
-                stdout_out += stdout_read
-            logger.debug("read %d bytes from stdout", len(stdout_read))
+        while (
+            not channel.exit_status_ready()
+            or channel.recv_ready()
+            or channel.recv_stderr_ready()
+            or not channel.eof_received
+        ):
+            exited = channel.exit_status_ready()
+            pending_data = channel.recv_ready() or channel.recv_stderr_ready()
 
-            logger.debug("reading stderr")
-            stderr_read = stderr.read()
-            if stderr_read:
-                stderr_out += stderr_read
-            logger.debug("read %d bytes from stderr", len(stderr_read))
+            if not exited:
+                logger.debug("waiting for command to exit: %r", cmd_string)
+            elif pending_data:
+                logger.debug("reading pending data: %r", cmd_string)
+            else:
+                logger.debug("waiting for channel eof: %r", cmd_string)
 
-            if (
-                not stdout_read
-                and not stderr_read
-                and stdout.channel.exit_status_ready()
-            ):
-                break
+            if channel.recv_ready():
+                logger.debug("reading stdout...")
+                data = channel.recv(recv_len)
+                while data:
+                    logger.debug("read stdout: %d bytes", len(data))
+                    stdout_io.write(data)
+                    logger.debug("reading stdout...")
+                    data = channel.recv(recv_len)
 
-        logger.debug("output read")
+            if channel.recv_stderr_ready():
+                logger.debug("reading stderr...")
+                data = channel.recv_stderr(recv_len)
+                while data:
+                    logger.debug("read stderr: %d bytes", len(data))
+                    stderr_io.write(data)
+                    logger.debug("reading stderr...")
+                    data = channel.recv_stderr(recv_len)
 
-        returncode = stdout.channel.recv_exit_status()
-        logger.debug("command returned: %r", returncode)
+            if not pending_data:
+                time.sleep(relax_duration)
+
+        returncode = channel.recv_exit_status()
+        stdout_out = stdout_io.getvalue()
+        stderr_out = stderr_io.getvalue()
+        logger.debug(
+            "command exited with: %d (stdout=%d stderr=%d)",
+            returncode,
+            len(stdout_out),
+            len(stderr_out),
+        )
+        channel.close()
+
         if check and returncode != 0:
             raise subprocess.CalledProcessError(
                 returncode, cmd_string, stdout_out, stderr_out

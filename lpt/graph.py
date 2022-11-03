@@ -74,10 +74,6 @@ class ServiceGraph:
         deps = set()
         seen = set()
 
-        for frame in self.frames:
-            if frame.parent is None:
-                print(frame)
-
         def _walk_dependencies(frame: CloudInitFrame) -> None:
             # logger.debug("walking: %s", frame)
             if frame in seen:

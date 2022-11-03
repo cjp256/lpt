@@ -443,7 +443,7 @@ class Systemd:
         list_units_output = Systemctl.list_units(run=run)
         list_units = Systemctl.parse_list_units(list_units_output)
 
-        for unit_name, list_unit in list_units.items():
+        for unit_name, list_unit in sorted(list_units.items()):
             logger.debug("querying for service: %s", unit_name)
             show_output = Systemctl.show(unit_name, run=run)
             show_properties = Systemctl.parse_show(show_output)
@@ -456,7 +456,7 @@ class Systemd:
 
         encodable_units = {k: v.as_dict() for k, v in units.items()}
         log = output_dir / "systemd-units.json"
-        log.write_text(json.dumps(encodable_units, indent=4))
+        log.write_text(json.dumps(encodable_units, indent=4, sort_keys=True))
 
         show_output = Systemctl.show(run=run)
         # logging.debug("read systemd show: %r", show_output)
