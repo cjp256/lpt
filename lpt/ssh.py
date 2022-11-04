@@ -124,6 +124,7 @@ class SSH:
                 logger.debug("failed to connect due to socket error: %r", exc)
 
             self.close()
+
             if attempts <= 0:
                 break
 
@@ -146,6 +147,38 @@ class SSH:
 
         assert isinstance(proc.stdout, bytes)
         local_path.write_bytes(proc.stdout)
+
+    def fetch_binary(self, remote_path: Path) -> bytes:
+        cmd = ["cat", str(remote_path)]
+
+        proc = self.run(cmd, capture_output=True, check=False)
+        if proc.returncode != 0:
+            logger.debug("falling back to fetching %r with sudo...", remote_path)
+            cmd.insert(0, "sudo")
+            try:
+                proc = self.run(cmd, capture_output=True, check=True)
+            except subprocess.CalledProcessError as exc:
+                logger.debug("failed to fetch file %r: %r", remote_path, exc)
+                raise FileNotFoundError(2, "No such file or directory") from exc
+
+        assert isinstance(proc.stdout, bytes)
+        return proc.stdout
+
+    def fetch_text(self, remote_path: Path) -> str:
+        cmd = ["cat", str(remote_path)]
+
+        proc = self.run(cmd, capture_output=True, check=False, text=True)
+        if proc.returncode != 0:
+            logger.debug("falling back to fetching %r with sudo...", remote_path)
+            cmd.insert(0, "sudo")
+            try:
+                proc = self.run(cmd, capture_output=True, check=True, text=True)
+            except subprocess.CalledProcessError as exc:
+                logger.debug("failed to fetch file %r: %r", remote_path, exc)
+                raise FileNotFoundError(2, "No such file or directory") from exc
+
+        assert isinstance(proc.stdout, str)
+        return proc.stdout
 
     def run(  # pylint: disable=too-many-locals,too-many-statements
         self,
