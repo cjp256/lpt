@@ -104,12 +104,12 @@ class SSH:
         )
         logger.debug("connected to ssh server (host=%s, user=%s)", self.host, self.user)
 
-    def connect_with_retries(self, attempts: int = 300, sleep: float = 1.0) -> None:
-        while attempts > 0:
+    def connect_with_retries(self, attempts: int = 300, sleep: float = 1.0) -> bool:
+        while True:
             attempts -= 1
             try:
                 self.connect()
-                return
+                return True
             except paramiko.ssh_exception.AuthenticationException as exc:
                 logger.debug("failed auth: %r", exc)
             except paramiko.ssh_exception.BadHostKeyException as exc:
@@ -124,7 +124,12 @@ class SSH:
                 logger.debug("failed to connect due to socket error: %r", exc)
 
             self.close()
+            if attempts <= 0:
+                break
+
             time.sleep(sleep)
+
+        return False
 
     def fetch(self, remote_path: Path, local_path: Path) -> None:
         cmd = ["cat", str(remote_path)]
