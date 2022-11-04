@@ -5,6 +5,7 @@ import shlex
 import socket
 import subprocess
 import time
+from io import StringIO
 from pathlib import Path
 from typing import List, Optional, Union
 
@@ -27,7 +28,7 @@ class SSH:
     proxy_host: Optional[str] = None
     proxy_user: Optional[str] = None
     proxy_sock: Optional[paramiko.Channel] = None
-    private_key: Optional[Path] = None
+    private_key: Optional[Union[Path, StringIO]] = None
     public_key: Optional[Path] = None
     transport: Optional[paramiko.Transport] = None
 
@@ -55,8 +56,10 @@ class SSH:
         logger.debug("closed client...")
 
     def connect(self) -> None:
-        if self.private_key:
+        if self.private_key and isinstance(self.private_key, Path):
             pkey = paramiko.RSAKey.from_private_key_file(str(self.private_key))
+        elif self.private_key and isinstance(self.private_key, StringIO):
+            pkey = paramiko.RSAKey.from_private_key(self.private_key)
         else:
             pkey = None
 
