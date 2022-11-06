@@ -28,7 +28,7 @@ class SSH:
     proxy_host: Optional[str] = None
     proxy_user: Optional[str] = None
     proxy_sock: Optional[paramiko.Channel] = None
-    private_key: Optional[Union[Path, StringIO]] = None
+    private_key: Optional[Union[Path, str]] = None
     public_key: Optional[Path] = None
     transport: Optional[paramiko.Transport] = None
 
@@ -58,8 +58,8 @@ class SSH:
     def connect(self) -> None:
         if self.private_key and isinstance(self.private_key, Path):
             pkey = paramiko.RSAKey.from_private_key_file(str(self.private_key))
-        elif self.private_key and isinstance(self.private_key, StringIO):
-            pkey = paramiko.RSAKey.from_private_key(self.private_key)
+        elif self.private_key and isinstance(self.private_key, str):
+            pkey = paramiko.RSAKey.from_private_key(StringIO(self.private_key))
         else:
             pkey = None
 
