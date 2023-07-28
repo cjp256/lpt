@@ -336,6 +336,7 @@ class CloudInit:
                             module = try_module
                             break
                         i += 1
+                modules.add(module)
 
                 frame = CloudInitFrame(
                     source="cloudinit",
