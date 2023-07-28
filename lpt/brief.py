@@ -107,6 +107,13 @@ class ServiceBrief:
                 return
 
             seen.add(frame)
+
+            conflicting_unit = self.units.get(frame.name)
+            if conflicting_unit is not None:
+                for i in range(0, 100):
+                    name =
+                    if 
+                return
             unit = Unit.from_cloudinit_frame(frame)
             self.units[frame.name] = unit
 

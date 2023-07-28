@@ -4,7 +4,7 @@ import logging
 import re
 from collections import deque
 from pathlib import Path
-from typing import FrozenSet, List, Optional, Union
+from typing import FrozenSet, List, Optional, Set, Union
 
 import dateutil.parser
 
@@ -314,6 +314,7 @@ class CloudInit:
     def get_frames(self) -> List[CloudInitFrame]:
         frames: List[CloudInitFrame] = []
         stack: deque[CloudInitFrame] = deque()
+        modules: Set[str] = set()
 
         for entry in self.entries:
             try:
@@ -325,6 +326,17 @@ class CloudInit:
                 assert entry.module
                 assert entry.stage
 
+                module=entry.module
+                if module in modules:
+                    # rename module for uniqueness
+                    i = 0
+                    while True:
+                        try_module = f"{module}#{i}"
+                        if try_module not in modules:
+                            module = try_module
+                            break
+                        i += 1
+
                 frame = CloudInitFrame(
                     source="cloudinit",
                     label="CLOUDINIT_FRAME",
@@ -332,7 +344,7 @@ class CloudInit:
                     timestamp_monotonic=entry.timestamp_monotonic,
                     duration=0,
                     stage=entry.stage,
-                    module=entry.module,
+                    module=module,
                     timestamp_realtime_finish=entry.timestamp_realtime,
                     timestamp_monotonic_finish=0,
                     timestamp_realtime_start=entry.timestamp_realtime,
