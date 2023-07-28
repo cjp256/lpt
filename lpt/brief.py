@@ -36,11 +36,6 @@ class Unit:
         if unit.is_failed():
             notes.append("FAILED")
 
-        import pdb
-
-        if name == "run-user.mount":
-            pdb.set_trace()
-
         return cls(
             name=name,
             duration=duration,
@@ -97,12 +92,10 @@ class ServiceBrief:
         self.units: Dict[str, Unit] = {}
         self.populate_units()
 
-    def walk_frame_dependencies(self) -> Set[Tuple[CloudInitFrame, CloudInitFrame]]:
-        roots = [f for f in self.frames if f.parent is None]
-        print(roots)
-        import pdb
-
-        pdb.set_trace()
+    def walk_frame_dependencies(
+        self, services: List[str]
+    ) -> Set[Tuple[CloudInitFrame, CloudInitFrame]]:
+        roots = [f for f in self.frames if f.parent is None and f.service in services]
 
         deps = set()
         seen = set()

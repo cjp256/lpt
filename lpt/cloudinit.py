@@ -52,19 +52,21 @@ class CloudInitFrame(Event):
         return obj
 
     @property
-    def name(self) -> str:
+    def service(self) -> str:
         if self.stage == "init-local":
-            service = "cloud-init-local.service"
+            return "cloud-init-local.service"
         elif self.stage == "init-network":
-            service = "cloud-init.service"
+            return "cloud-init.service"
         elif self.stage == "modules-config":
-            service = "cloud-config.service"
+            return "cloud-config.service"
         elif self.stage == "modules-final":
-            service = "cloud-final.service"
-        else:
-            raise RuntimeError(f"unknown stage: {self.stage}")
+            return "cloud-final.service"
 
-        return f"{service}/{self.module}"
+        raise RuntimeError(f"unknown stage: {self.stage}")
+
+    @property
+    def name(self) -> str:
+        return f"{self.service}/{self.module}"
 
 
 @dataclasses.dataclass
