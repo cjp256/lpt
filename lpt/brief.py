@@ -93,9 +93,9 @@ class ServiceBrief:
         self.populate_units()
 
     def walk_frame_dependencies(
-        self, services: List[str]
+        self
     ) -> Set[Tuple[CloudInitFrame, CloudInitFrame]]:
-        roots = [f for f in self.frames if f.parent is None and f.service in services]
+        roots = [f for f in self.frames if f.parent is None and f.service in self.units.keys()]
 
         deps = set()
         seen = set()
