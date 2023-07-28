@@ -329,7 +329,7 @@ class CloudInit:
                 module=entry.module
                 if module in modules:
                     # rename module for uniqueness
-                    i = 0
+                    i = 2
                     while True:
                         try_module = f"{module}#{i}"
                         if try_module not in modules:
