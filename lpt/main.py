@@ -12,8 +12,6 @@ from lpt.brief import ServiceBrief
 
 from .analyze import analyze_events
 from .cloudinit import CloudInit
-from .clouds.azure import Azure
-from .clouds.keys import generate_ssh_keys
 from .graph import ServiceGraph
 from .journal import Journal
 from .logging import configure_logging
