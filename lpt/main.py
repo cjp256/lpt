@@ -8,6 +8,8 @@ import tempfile
 from pathlib import Path
 from typing import List, Optional
 
+from lpt.brief import ServiceBrief
+
 from .analyze import analyze_events
 from .cloudinit import CloudInit
 from .clouds.azure import Azure
@@ -128,6 +130,32 @@ def main_graph(args, ssh_mgr: SshManager) -> None:
     ).generate_digraph()
 
     print(digraph)
+
+
+def main_brief(args, ssh_mgr: SshManager) -> None:
+    ssh = ssh_mgr.connect(host=args.ssh_host, user=args.ssh_user)
+
+    cloudinits = load_cloudinit(args, ssh)
+    if cloudinits:
+        cloudinit = cloudinits[-1]
+        frames = cloudinit.get_frames()
+    else:
+        frames = []
+
+    systemd = load_systemd(args, ssh)
+
+    units = ServiceBrief(
+        systemd=systemd,
+        frames=frames,
+        filter_services=[],
+        service_name=args.service,
+    ).units
+
+    json_units = {}
+    for k, v in units.items():
+        json_units[k] = v.as_dict()
+
+    print(json.dumps(json_units, indent=4, sort_keys=True))
 
 
 def main_help(parser, _):
@@ -274,6 +302,24 @@ def main():
     analyze_parser.set_defaults(func=main_analyze_journal)
     for opt in ["--boot", "--event-type", "--journal-path", "--ssh-host", "--ssh-user"]:
         analyze_parser.add_argument(opt, **all_arguments[opt])
+
+    brief_parser = subparsers.add_parser("brief")
+    brief_parser.set_defaults(func=main_brief)
+    for opt in [
+        "--cloudinit-log-path",
+        "--filter-conditional-result-no",
+        "--filter-service",
+        "--ssh-host",
+        "--ssh-user",
+    ]:
+        brief_parser.add_argument(opt, **all_arguments[opt])
+
+    brief_parser.add_argument(
+        "service",
+        metavar="service",
+        help="unit to query dependencies for",
+        default="multi-user.target",
+    )
 
     graph_parser = subparsers.add_parser("graph")
     graph_parser.set_defaults(func=main_graph)

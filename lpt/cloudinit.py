@@ -51,6 +51,21 @@ class CloudInitFrame(Event):
         obj["children"] = ["/".join([c.stage, c.module]) for c in children]
         return obj
 
+    @property
+    def name(self) -> str:
+        if self.stage == "init-local":
+            service = "cloud-init-local.service"
+        elif self.stage == "init-network":
+            service = "cloud-init.service"
+        elif self.stage == "modules-config":
+            service = "cloud-config.service"
+        elif self.stage == "modules-final":
+            service = "cloud-final.service"
+        else:
+            raise RuntimeError(f"unknown stage: {self.stage}")
+
+        return f"{service}/{self.module}"
+
 
 @dataclasses.dataclass
 class CloudInitEvent(Event):

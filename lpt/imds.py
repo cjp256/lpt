@@ -24,6 +24,8 @@ class InstanceMetadata:
             "curl",
             "-H",
             "Metadata: true",
+            "--show-error",
+            "--silent",
             "http://169.254.169.254/metadata/instance?api-version=2019-06-01",
         ]
         try:
@@ -36,6 +38,7 @@ class InstanceMetadata:
             )
         except subprocess.CalledProcessError as error:
             logger.error("cmd (%r) failed (error=%r)", cmd, error)
+            raise
 
         metadata = json.loads(proc.stdout)
 
