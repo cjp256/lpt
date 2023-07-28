@@ -375,7 +375,7 @@ class CloudInit:
                 assert entry.result
                 assert entry.stage
                 assert frame.stage == entry.stage
-                assert frame.module == entry.module
+                assert frame.module.startswith(entry.module)
 
                 frame.timestamp_realtime_finish = entry.timestamp_realtime
                 frame.timestamp_monotonic_finish = entry.timestamp_monotonic
