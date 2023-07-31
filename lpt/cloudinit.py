@@ -326,7 +326,7 @@ class CloudInit:
                 assert entry.module
                 assert entry.stage
 
-                module=entry.module
+                module = entry.module
                 if module in modules:
                     # rename module for uniqueness
                     i = 2
